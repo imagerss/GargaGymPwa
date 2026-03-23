@@ -48,16 +48,16 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="app-shell">
-    <Toolbar v-if="authStore.isAuthenticated" class="topbar">
+  <div class="min-h-screen p-4 text-slate-800">
+    <Toolbar v-if="authStore.isAuthenticated" class="rounded-2xl border border-slate-200 bg-white">
       <template #start>
-        <div class="brand">
+        <div class="flex items-center gap-2 font-semibold">
           <Dumbbell :size="18" />
           <span>GargaGym</span>
         </div>
       </template>
       <template #center>
-        <div class="nav-actions">
+        <div class="flex flex-nowrap gap-2 overflow-x-auto pb-0.5">
           <Button
             v-for="item in navItems"
             :key="item.path"
@@ -67,6 +67,7 @@ onUnmounted(() => {
             :variant="route.path === item.path ? undefined : 'text'"
             rounded
             @click="router.push(item.path)"
+            class="shrink-0"
           >
             <template #icon>
               <component :is="item.icon" :size="16" />
@@ -75,10 +76,10 @@ onUnmounted(() => {
         </div>
       </template>
       <template #end>
-        <div class="topbar-right">
+        <div class="flex items-center gap-2.5">
           <Tag :severity="isOnline ? 'success' : 'warn'" rounded>
             <template #default>
-              <span class="status-chip">
+              <span class="flex items-center gap-1.5">
                 <Wifi v-if="isOnline" :size="14" />
                 <WifiOff v-else :size="14" />
                 {{ isOnline ? 'Online' : 'Offline' }}
@@ -93,75 +94,14 @@ onUnmounted(() => {
         </div>
       </template>
     </Toolbar>
-    <p v-if="authStore.isAuthenticated && !isOnline" class="offline-banner">
+    <p
+      v-if="authStore.isAuthenticated && !isOnline"
+      class="mt-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-amber-800"
+    >
       Brak internetu. Zmiany zostana zsynchronizowane po polaczeniu.
     </p>
-    <main class="content">
+    <main class="mx-auto max-w-6xl pt-4">
       <RouterView />
     </main>
   </div>
 </template>
-
-<style scoped>
-.app-shell {
-  min-height: 100vh;
-  padding: 1rem;
-  color: #1e293b;
-}
-
-.topbar {
-  border-radius: 1rem;
-  border: 1px solid #dbe3ef;
-  background: #ffffff;
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-weight: 700;
-}
-
-.nav-actions {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  padding-bottom: 0.1rem;
-}
-
-.nav-actions :deep(.p-button) {
-  flex: 0 0 auto;
-}
-
-.nav-actions :deep(.p-button-label) {
-  white-space: nowrap;
-}
-
-.topbar-right {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-}
-
-.offline-banner {
-  margin: 0.7rem 0 0;
-  padding: 0.65rem 0.9rem;
-  border-radius: 0.75rem;
-  background: #fffbeb;
-  border: 1px solid #fde68a;
-  color: #92400e;
-}
-
-.status-chip {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.content {
-  padding: 1rem 0 0;
-  max-width: 72rem;
-  margin: 0 auto;
-}
-</style>

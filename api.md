@@ -24,6 +24,22 @@ Request:
 }
 ```
 
+Przykładowa odpowiedź `201 Created`:
+```json
+{
+  "token": "1|long-sanctum-token",
+  "token_type": "Bearer",
+  "user": {
+    "id": 1,
+    "name": "Jan Kowalski",
+    "email": "jan@example.com",
+    "email_verified_at": null,
+    "created_at": "2026-03-23T11:00:00.000000Z",
+    "updated_at": "2026-03-23T11:00:00.000000Z"
+  }
+}
+```
+
 ### Logowanie
 - `POST /auth/login`
 
@@ -36,11 +52,55 @@ Request:
 }
 ```
 
+Przykładowa odpowiedź `200 OK`:
+```json
+{
+  "token": "2|long-sanctum-token",
+  "token_type": "Bearer",
+  "user": {
+    "id": 1,
+    "name": "Jan Kowalski",
+    "email": "jan@example.com",
+    "email_verified_at": null,
+    "created_at": "2026-03-23T11:00:00.000000Z",
+    "updated_at": "2026-03-23T11:00:00.000000Z"
+  }
+}
+```
+
+Przykładowa odpowiedź błędu logowania `401 Unauthorized`:
+```json
+{
+  "message": "Podane dane logowania są nieprawidłowe."
+}
+```
+
 ### Aktualny użytkownik
 - `GET /auth/me`
 
+Przykładowa odpowiedź `200 OK`:
+```json
+{
+  "user": {
+    "id": 1,
+    "name": "Jan Kowalski",
+    "email": "jan@example.com",
+    "email_verified_at": null,
+    "created_at": "2026-03-23T11:00:00.000000Z",
+    "updated_at": "2026-03-23T11:00:00.000000Z"
+  }
+}
+```
+
 ### Wylogowanie
 - `POST /auth/logout`
+
+Przykładowa odpowiedź `200 OK`:
+```json
+{
+  "message": "Wylogowano pomyślnie."
+}
+```
 
 ## Nagłówki HTTP (Vue PWA)
 
@@ -286,6 +346,22 @@ if (isOnline) {
 }
 ```
 
+Przykładowa odpowiedź `201 Created`:
+```json
+{
+  "data": {
+    "id": 10,
+    "user_id": 1,
+    "name": "Push Pull Legs",
+    "description": "3 dni",
+    "is_active": true,
+    "created_at": "2026-03-23T11:30:00.000000Z",
+    "updated_at": "2026-03-23T11:30:00.000000Z"
+  },
+  "message": "Plan treningowy został utworzony."
+}
+```
+
 ### `POST /workout-sessions`
 ```json
 {
@@ -295,12 +371,46 @@ if (isOnline) {
 }
 ```
 
+Przykładowa odpowiedź `201 Created`:
+```json
+{
+  "data": {
+    "id": 25,
+    "user_id": 1,
+    "workout_plan_id": 10,
+    "started_at": "2026-03-23T10:00:00.000000Z",
+    "ended_at": null,
+    "notes": null,
+    "status": "active",
+    "created_at": "2026-03-23T10:00:01.000000Z",
+    "updated_at": "2026-03-23T10:00:01.000000Z"
+  },
+  "message": "Sesja treningowa została utworzona."
+}
+```
+
 ### `POST /body-measurements`
 ```json
 {
   "measured_at": "2026-03-23T09:00:00Z",
   "weight": 81.4,
   "waist_cm": 84.0
+}
+```
+
+Przykładowa odpowiedź `201 Created`:
+```json
+{
+  "data": {
+    "id": 44,
+    "user_id": 1,
+    "measured_at": "2026-03-23T09:00:00.000000Z",
+    "weight": "81.40",
+    "waist_cm": "84.00",
+    "created_at": "2026-03-23T11:35:00.000000Z",
+    "updated_at": "2026-03-23T11:35:00.000000Z"
+  },
+  "message": "Pomiar ciała został zapisany."
 }
 ```
 
@@ -314,6 +424,27 @@ if (isOnline) {
   "unit": "kg",
   "start_date": "2026-03-23",
   "status": "active"
+}
+```
+
+Przykładowa odpowiedź `201 Created`:
+```json
+{
+  "data": {
+    "id": 9,
+    "user_id": 1,
+    "type": "waga",
+    "title": "Schudnąć do 78 kg",
+    "target_value": "78.00",
+    "current_value": "82.00",
+    "unit": "kg",
+    "start_date": "2026-03-23",
+    "target_date": null,
+    "status": "active",
+    "created_at": "2026-03-23T11:40:00.000000Z",
+    "updated_at": "2026-03-23T11:40:00.000000Z"
+  },
+  "message": "Cel został utworzony."
 }
 ```
 
@@ -345,6 +476,20 @@ Błąd walidacji (Laravel):
   "errors": {
     "field": ["Komunikat walidacji"]
   }
+}
+```
+
+Brak autoryzacji `401 Unauthorized`:
+```json
+{
+  "message": "Unauthenticated."
+}
+```
+
+Brak dostępu do zasobu `403 Forbidden`:
+```json
+{
+  "message": "This action is unauthorized."
 }
 ```
 

@@ -28,7 +28,24 @@ export const useAuthStore = defineStore('auth', () => {
       const data = await authService.login(email, password)
       tokenMemory.value = data.token
       await secureStorage.setToken(data.token)
-      user.value = data.user
+      user.value = data.user ?? (await authService.me())
+    } finally {
+      loading.value = false
+    }
+  }
+
+  const register = async (payload: {
+    name: string
+    email: string
+    password: string
+    password_confirmation: string
+  }) => {
+    loading.value = true
+    try {
+      const data = await authService.register(payload)
+      tokenMemory.value = data.token
+      await secureStorage.setToken(data.token)
+      user.value = data.user ?? (await authService.me())
     } finally {
       loading.value = false
     }
@@ -58,5 +75,5 @@ export const useAuthStore = defineStore('auth', () => {
     await secureStorage.clearToken()
   }
 
-  return { user, loading, isAuthenticated, login, logout, getToken, restoreSession, logoutLocal }
+  return { user, loading, isAuthenticated, login, register, logout, getToken, restoreSession, logoutLocal }
 })

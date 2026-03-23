@@ -5,23 +5,23 @@ import { Camera, Ruler, Scale } from 'lucide-vue-next'
 </script>
 
 <template>
-  <section class="page">
-    <Card>
+  <section class="max-w-6xl">
+    <Card class="border border-slate-200 shadow-sm">
       <template #title>Progress</template>
       <template #subtitle>Waga, pomiary i zdjecia progresu</template>
       <template #content>
-        <div class="tiles">
-          <article class="tile">
+        <div class="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(10rem,1fr))]">
+          <article class="flex flex-col gap-2 rounded-xl border border-slate-200 p-3">
             <Scale :size="18" />
             <span>Waga</span>
             <Tag value="MVP" severity="secondary" />
           </article>
-          <article class="tile">
+          <article class="flex flex-col gap-2 rounded-xl border border-slate-200 p-3">
             <Ruler :size="18" />
             <span>Pomiary</span>
             <Tag value="MVP" severity="secondary" />
           </article>
-          <article class="tile">
+          <article class="flex flex-col gap-2 rounded-xl border border-slate-200 p-3">
             <Camera :size="18" />
             <span>Zdjecia</span>
             <Tag value="Nastepny etap" severity="contrast" />
@@ -31,20 +31,3 @@ import { Camera, Ruler, Scale } from 'lucide-vue-next'
     </Card>
   </section>
 </template>
-
-<style scoped>
-.tiles {
-  display: grid;
-  gap: 0.75rem;
-  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
-}
-
-.tile {
-  padding: 0.75rem;
-  border-radius: 0.75rem;
-  border: 1px solid rgba(148, 163, 184, 0.26);
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-</style>

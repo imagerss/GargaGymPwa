@@ -32,38 +32,38 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <section class="page dashboard">
-    <div class="hero">
-      <h1>Czesc, {{ authStore.user?.name }}</h1>
-      <p>Twoj panel synchronizacji i podsumowanie danych treningowych.</p>
+  <section class="max-w-6xl">
+    <div class="mb-4">
+      <h1 class="m-0 text-[clamp(1.4rem,2vw,2rem)] font-semibold">Czesc, {{ authStore.user?.name }}</h1>
+      <p class="mt-2 text-slate-500">Twoj panel synchronizacji i podsumowanie danych treningowych.</p>
     </div>
-    <div class="info-grid">
-      <Card>
+    <div class="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(14rem,1fr))]">
+      <Card class="border border-slate-200 shadow-sm">
         <template #content>
-          <div class="metric">
-            <span>Status sieci</span>
+          <div class="grid gap-2">
+            <span class="text-slate-500">Status sieci</span>
             <Tag :value="syncStatus" :severity="isOnline ? 'success' : 'warn'" />
           </div>
         </template>
       </Card>
-      <Card>
+      <Card class="border border-slate-200 shadow-sm">
         <template #content>
-          <div class="metric">
-            <span>Oczekujace zmiany</span>
-            <strong>{{ syncStore.pendingOperations }}</strong>
+          <div class="grid gap-2">
+            <span class="text-slate-500">Oczekujace zmiany</span>
+            <strong class="text-2xl">{{ syncStore.pendingOperations }}</strong>
           </div>
         </template>
       </Card>
-      <Card>
+      <Card class="border border-slate-200 shadow-sm">
         <template #content>
-          <div class="metric">
-            <span>Ostatnia synchronizacja</span>
-            <small>{{ syncStore.lastSyncAt ?? 'Brak' }}</small>
+          <div class="grid gap-2">
+            <span class="text-slate-500">Ostatnia synchronizacja</span>
+            <small class="text-sm">{{ syncStore.lastSyncAt ?? 'Brak' }}</small>
           </div>
         </template>
       </Card>
     </div>
-    <div class="actions">
+    <div class="mt-4 flex flex-wrap gap-2.5">
       <Button
         label="Synchronizuj teraz"
         icon="pi pi-sync"
@@ -78,53 +78,3 @@ onUnmounted(() => {
     </div>
   </section>
 </template>
-
-<style scoped>
-.dashboard {
-  max-width: 70rem;
-}
-
-.hero {
-  margin-bottom: 1rem;
-}
-
-.hero h1 {
-  margin: 0;
-  font-size: clamp(1.4rem, 2vw, 2rem);
-}
-
-.hero p {
-  margin: 0.45rem 0 0;
-  color: #94a3b8;
-}
-
-.info-grid {
-  display: grid;
-  gap: 0.8rem;
-  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
-}
-
-.metric {
-  display: grid;
-  gap: 0.5rem;
-}
-
-.metric span {
-  color: #94a3b8;
-}
-
-.metric strong {
-  font-size: 1.5rem;
-}
-
-.metric small {
-  font-size: 0.85rem;
-}
-
-.actions {
-  margin-top: 1rem;
-  display: flex;
-  gap: 0.65rem;
-  flex-wrap: wrap;
-}
-</style>

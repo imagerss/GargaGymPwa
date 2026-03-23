@@ -25,38 +25,22 @@ const createOfflinePlan = async () => {
 </script>
 
 <template>
-  <section class="page">
-    <Card>
+  <section class="max-w-6xl">
+    <Card class="border border-slate-200 shadow-sm">
       <template #title>Plany treningowe</template>
       <template #subtitle>Dodaj plan do kolejki offline (MVP)</template>
       <template #content>
-        <div class="inline">
+        <div class="flex gap-2.5">
           <InputText v-model="planName" type="text" placeholder="Nazwa planu" fluid />
           <Button label="Dodaj offline" icon="pi pi-plus" @click="createOfflinePlan" severity="success" />
         </div>
-        <Message severity="info" class="queue-info">
+        <Message severity="info" class="mt-3">
           Operacje oczekujace: <strong>{{ syncStore.pendingOperations }}</strong>
         </Message>
       </template>
     </Card>
-    <div class="helper">
+    <div class="mt-3 text-slate-500">
       <p>W kolejnych krokach dodamy liste planow i edycje/delete online+offline.</p>
     </div>
   </section>
 </template>
-
-<style scoped>
-.inline {
-  display: flex;
-  gap: 0.6rem;
-}
-
-.queue-info {
-  margin-top: 0.8rem;
-}
-
-.helper {
-  margin-top: 0.75rem;
-  color: #94a3b8;
-}
-</style>
