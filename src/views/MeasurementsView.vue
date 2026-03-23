@@ -112,6 +112,7 @@ const addMeasurement = async () => {
       waist_cm: payload.waist_cm,
     }
     measurements.value = [tempMeasurement, ...measurements.value]
+    await gymService.upsertBodyMeasurementCache(tempMeasurement)
 
     if (navigator.onLine) {
       const response = await apiClient.post('/body-measurements', payload)
@@ -119,8 +120,14 @@ const addMeasurement = async () => {
       measurements.value = measurements.value.map((measurement) =>
         measurement.id === tempMeasurement.id ? created : measurement,
       )
+      await gymService.replaceCachedEntityId('body_measurements', tempMeasurement.id, created)
     } else {
-      await syncStore.enqueueOperation({ resource: 'body_measurements', action: 'create', data: payload })
+      await syncStore.enqueueOperation({
+        resource: 'body_measurements',
+        action: 'create',
+        local_entity_id: tempMeasurement.id,
+        data: payload,
+      })
     }
     form.value.weight = null
     form.value.waist_cm = null
@@ -137,6 +144,11 @@ const deleteMeasurement = async (id: number) => {
   const prev = measurements.value
   measurements.value = measurements.value.filter((measurement) => measurement.id !== id)
   try {
+    await gymService.removeBodyMeasurementCache(id)
+    if (id < 0) {
+      await syncStore.discardLocalEntity('body_measurements', id)
+      return
+    }
     if (navigator.onLine && id > 0) {
       await apiClient.delete(`/body-measurements/${id}`)
     } else {
@@ -148,6 +160,10 @@ const deleteMeasurement = async (id: number) => {
     }
   } catch {
     measurements.value = prev
+    const restored = prev.find((measurement) => measurement.id === id)
+    if (restored) {
+      await gymService.upsertBodyMeasurementCache(restored)
+    }
   } finally {
     deletingId.value = null
   }

@@ -2,6 +2,7 @@ import { ref } from 'vue'
 import { defineStore } from 'pinia'
 
 import { db } from '@/db/appDb'
+import { planConfigSyncService } from '@/services/planConfigSyncService'
 import { syncService } from '@/services/syncService'
 import type { ResourceName, SyncAction } from '@/db/appDb'
 
@@ -29,6 +30,9 @@ export const useSyncStore = defineStore('sync', () => {
       const pushServerTime = await syncService.pushQueue()
       const shouldPull = pendingBeforeSync > 0 || Date.now() - lastPullAtMs > 2 * 60 * 1000
       const pullServerTime = shouldPull ? await syncService.pullChanges(lastSyncAt.value ?? undefined) : null
+      if (navigator.onLine) {
+        await planConfigSyncService.syncDirtyPlanConfigs()
+      }
       const serverTime = pullServerTime ?? pushServerTime
 
       if (serverTime) {
@@ -61,6 +65,8 @@ export const useSyncStore = defineStore('sync', () => {
     resource: ResourceName
     action: SyncAction
     entity_id?: number
+    local_entity_id?: number
+    local_ref?: string
     data?: Record<string, unknown>
   }) => {
     await syncService.queueOperation(payload)
@@ -79,5 +85,20 @@ export const useSyncStore = defineStore('sync', () => {
     }
   }
 
-  return { isSyncing, lastSyncAt, pendingOperations, error, loadState, syncNow, enqueueOperation, syncIfNeeded }
+  const discardLocalEntity = async (resource: ResourceName, localEntityId: number, localRef?: string) => {
+    await syncService.discardLocalEntity(resource, localEntityId, localRef)
+    pendingOperations.value = await syncService.pendingCount()
+  }
+
+  return {
+    isSyncing,
+    lastSyncAt,
+    pendingOperations,
+    error,
+    loadState,
+    syncNow,
+    enqueueOperation,
+    discardLocalEntity,
+    syncIfNeeded,
+  }
 })

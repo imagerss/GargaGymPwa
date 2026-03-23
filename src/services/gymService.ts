@@ -1,5 +1,12 @@
 import { apiClient } from '@/services/apiClient'
 import { db, type ResourceName } from '@/db/appDb'
+import {
+  readCachedResource,
+  removeCachedResourceEntity,
+  replaceCachedResourceEntityId,
+  upsertCachedResourceEntity,
+  writeCachedResource,
+} from '@/services/offlineEntityService'
 import { syncService } from '@/services/syncService'
 
 export interface WorkoutPlan {
@@ -7,6 +14,19 @@ export interface WorkoutPlan {
   name: string
   description?: string | null
   is_active?: boolean
+  workout_days?: Array<{
+    id: number
+    name: string
+    day_order: number
+    workout_day_exercises?: Array<{
+      id: number
+      exercise_id: number
+      target_sets?: number | null
+      target_reps_min?: number | null
+      target_reps_max?: number | null
+      sort_order: number
+    }>
+  }>
 }
 
 export interface Exercise {
@@ -18,8 +38,10 @@ export interface Exercise {
 export interface WorkoutSession {
   id: number
   started_at: string
+  ended_at?: string | null
   status: string
   workout_plan_id?: number | null
+  notes?: string | null
 }
 
 export interface BodyMeasurement {
@@ -64,72 +86,6 @@ const extractList = <T>(payload: ApiEnvelope<T[]>): T[] => {
 const CACHE_REFRESH_INTERVAL_MS = 60 * 1000
 const CACHE_REFRESH_KEY = 'cache_last_refresh_at_ms'
 let refreshPromise: Promise<boolean> | null = null
-
-const readCachedResource = async <T>(resource: ResourceName): Promise<T[]> => {
-  const rows = (await db.entities.toArray()).filter((entry) => entry.resource === resource)
-  const uniqueByEntityId = new Map<number, (typeof rows)[number]>()
-
-  for (const row of rows) {
-    const previous = uniqueByEntityId.get(row.entity_id)
-    if (!previous) {
-      uniqueByEntityId.set(row.entity_id, row)
-      continue
-    }
-
-    const prevTs = Date.parse(previous.updated_at)
-    const rowTs = Date.parse(row.updated_at)
-    if (Number.isNaN(prevTs) || rowTs >= prevTs) {
-      uniqueByEntityId.set(row.entity_id, row)
-    }
-  }
-
-  const uniqueRows = Array.from(uniqueByEntityId.values())
-  const duplicateRowIds = rows
-    .filter((row) => uniqueByEntityId.get(row.entity_id)?.id !== row.id)
-    .map((row) => row.id)
-    .filter(Boolean) as number[]
-
-  if (duplicateRowIds.length > 0) {
-    void db.entities.bulkDelete(duplicateRowIds)
-  }
-
-  return uniqueRows
-    .map((entry) => entry.payload as T)
-    .sort((a, b) => Number((b as { id?: number }).id ?? 0) - Number((a as { id?: number }).id ?? 0))
-}
-
-const writeCachedResource = async <T extends { id: number }>(resource: ResourceName, records: T[]) => {
-  const nowIso = new Date().toISOString()
-  const current = await db.entities.toArray()
-  const staleRows = current.filter((entry) => entry.resource === resource).map((entry) => entry.id).filter(Boolean) as number[]
-
-  await db.transaction('rw', db.entities, async () => {
-    if (staleRows.length > 0) {
-      await db.entities.bulkDelete(staleRows)
-    }
-    if (records.length > 0) {
-      await db.entities.bulkPut(
-        records.map((record) => ({
-          resource,
-          entity_id: record.id,
-          payload: record as Record<string, unknown>,
-          updated_at: nowIso,
-        })),
-      )
-    }
-  })
-}
-
-const upsertCachedResourceEntity = async <T extends { id: number }>(resource: ResourceName, record: T) => {
-  const existing = await db.entities.where('[resource+entity_id]').equals([resource, record.id]).first()
-  await db.entities.put({
-    id: existing?.id,
-    resource,
-    entity_id: record.id,
-    payload: record as Record<string, unknown>,
-    updated_at: new Date().toISOString(),
-  })
-}
 
 const maybeRefreshCacheFromSync = async (): Promise<boolean> => {
   if (!navigator.onLine) return false
@@ -188,14 +144,41 @@ export const gymService = {
   async upsertWorkoutSessionCache(session: WorkoutSession): Promise<void> {
     await upsertCachedResourceEntity<WorkoutSession>('workout_sessions', session)
   },
+  async upsertWorkoutPlanCache(plan: WorkoutPlan): Promise<void> {
+    await upsertCachedResourceEntity<WorkoutPlan>('workout_plans', plan)
+  },
+  async removeWorkoutPlanCache(planId: number): Promise<void> {
+    await removeCachedResourceEntity('workout_plans', planId)
+  },
+  async upsertExerciseCache(exercise: Exercise): Promise<void> {
+    await upsertCachedResourceEntity<Exercise>('exercises', exercise)
+  },
+  async removeExerciseCache(exerciseId: number): Promise<void> {
+    await removeCachedResourceEntity('exercises', exerciseId)
+  },
   async listBodyMeasurements(): Promise<BodyMeasurement[]> {
     return listWithCache<BodyMeasurement>('body_measurements', '/body-measurements')
+  },
+  async upsertBodyMeasurementCache(measurement: BodyMeasurement): Promise<void> {
+    await upsertCachedResourceEntity<BodyMeasurement>('body_measurements', measurement)
+  },
+  async removeBodyMeasurementCache(measurementId: number): Promise<void> {
+    await removeCachedResourceEntity('body_measurements', measurementId)
   },
   async listGoals(): Promise<Goal[]> {
     return listWithCache<Goal>('goals', '/goals')
   },
+  async upsertGoalCache(goal: Goal): Promise<void> {
+    await upsertCachedResourceEntity<Goal>('goals', goal)
+  },
+  async removeGoalCache(goalId: number): Promise<void> {
+    await removeCachedResourceEntity('goals', goalId)
+  },
   async listProgressPhotos(): Promise<ProgressPhoto[]> {
     return listWithCache<ProgressPhoto>('progress_photos', '/progress-photos')
+  },
+  async replaceCachedEntityId(resource: ResourceName, previousEntityId: number, nextEntity: { id: number }) {
+    await replaceCachedResourceEntityId(resource, previousEntityId, nextEntity)
   },
   async statsOverview(): Promise<Record<string, unknown>> {
     const response = await apiClient.get('/stats/overview')

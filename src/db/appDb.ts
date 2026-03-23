@@ -16,6 +16,8 @@ export interface OfflineOperation {
   resource: ResourceName
   action: SyncAction
   entity_id?: number
+  local_entity_id?: number
+  local_ref?: string
   data?: Record<string, unknown>
   created_at: string
   failed?: boolean
@@ -43,7 +45,12 @@ export class AppDb extends Dexie {
     super('gargagym-db')
     this.version(1).stores({
       operations: '++id, client_id, resource, action, created_at, failed',
-      entities: '++id, [resource+entity_id], updated_at',
+      entities: '++id, resource, [resource+entity_id], updated_at',
+      kv: 'key',
+    })
+    this.version(2).stores({
+      operations: '++id, client_id, resource, action, entity_id, local_entity_id, local_ref, created_at, failed',
+      entities: '++id, resource, [resource+entity_id], updated_at',
       kv: 'key',
     })
   }

@@ -57,13 +57,20 @@ const addGoal = async () => {
       status: payload.status,
     }
     goals.value = [tempGoal, ...goals.value]
+    await gymService.upsertGoalCache(tempGoal)
 
     if (navigator.onLine) {
       const response = await apiClient.post('/goals', payload)
       const created = (response.data?.data ?? response.data) as Goal
       goals.value = goals.value.map((goal) => (goal.id === tempGoal.id ? created : goal))
+      await gymService.replaceCachedEntityId('goals', tempGoal.id, created)
     } else {
-      await syncStore.enqueueOperation({ resource: 'goals', action: 'create', data: payload })
+      await syncStore.enqueueOperation({
+        resource: 'goals',
+        action: 'create',
+        local_entity_id: tempGoal.id,
+        data: payload,
+      })
     }
     form.value.title = ''
     form.value.target_value = ''
@@ -80,6 +87,11 @@ const deleteGoal = async (id: number) => {
   const prev = goals.value
   goals.value = goals.value.filter((goal) => goal.id !== id)
   try {
+    await gymService.removeGoalCache(id)
+    if (id < 0) {
+      await syncStore.discardLocalEntity('goals', id)
+      return
+    }
     if (navigator.onLine && id > 0) {
       await apiClient.delete(`/goals/${id}`)
     } else {
@@ -87,6 +99,10 @@ const deleteGoal = async (id: number) => {
     }
   } catch {
     goals.value = prev
+    const restored = prev.find((goal) => goal.id === id)
+    if (restored) {
+      await gymService.upsertGoalCache(restored)
+    }
   } finally {
     deletingId.value = null
   }

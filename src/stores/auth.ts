@@ -4,6 +4,7 @@ import { defineStore } from 'pinia'
 import { authService } from '@/services/authService'
 import { secureStorage } from '@/services/secureStorage'
 import { db } from '@/db/appDb'
+import { useSyncStore } from '@/stores/sync'
 
 interface AuthUser {
   id: number
@@ -12,10 +13,12 @@ interface AuthUser {
 }
 
 const AUTH_USER_KEY = 'auth_user'
+const LAST_AUTH_USER_ID_KEY = 'last_auth_user_id'
 const CACHE_REFRESH_KEY = 'cache_last_refresh_at_ms'
 const LAST_SYNC_KEY = 'last_sync_at'
 const PLAN_CONFIGS_KEY = 'training_plan_configs_v1'
 const SESSION_LOGS_KEY = 'training_session_logs_v1'
+const DIRTY_PLAN_CONFIGS_KEY = 'training_plan_configs_dirty_v1'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<AuthUser | null>(null)
@@ -47,6 +50,16 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  const setLastAuthUserId = async (userId: number) => {
+    await db.kv.put({ key: LAST_AUTH_USER_ID_KEY, value: String(userId) })
+  }
+
+  const readLastAuthUserId = async (): Promise<number | null> => {
+    const entry = await db.kv.get(LAST_AUTH_USER_ID_KEY)
+    const parsed = Number(entry?.value ?? '')
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+  }
+
   const clearLocalUserData = async () => {
     await db.transaction('rw', db.entities, db.operations, db.kv, async () => {
       await db.entities.clear()
@@ -56,11 +69,13 @@ export const useAuthStore = defineStore('auth', () => {
     })
     window.localStorage.removeItem(PLAN_CONFIGS_KEY)
     window.localStorage.removeItem(SESSION_LOGS_KEY)
+    window.localStorage.removeItem(DIRTY_PLAN_CONFIGS_KEY)
   }
 
   const clearDataIfUserChanged = async (nextUser: AuthUser) => {
-    const previousUser = user.value ?? (await readPersistedUser())
-    if (previousUser?.id && previousUser.id !== nextUser.id) {
+    const inMemoryOrPersisted = user.value?.id ?? (await readPersistedUser())?.id ?? null
+    const previousUserId = inMemoryOrPersisted ?? (await readLastAuthUserId())
+    if (previousUserId && previousUserId !== nextUser.id) {
       await clearLocalUserData()
     }
   }
@@ -74,6 +89,11 @@ export const useAuthStore = defineStore('auth', () => {
       await secureStorage.setToken(data.token)
       user.value = data.user
       await persistUser(data.user)
+      await setLastAuthUserId(data.user.id)
+      if (navigator.onLine) {
+        const syncStore = useSyncStore()
+        await syncStore.syncNow()
+      }
     } finally {
       loading.value = false
     }
@@ -93,6 +113,11 @@ export const useAuthStore = defineStore('auth', () => {
       await secureStorage.setToken(data.token)
       user.value = data.user
       await persistUser(data.user)
+      await setLastAuthUserId(data.user.id)
+      if (navigator.onLine) {
+        const syncStore = useSyncStore()
+        await syncStore.syncNow()
+      }
     } finally {
       loading.value = false
     }
@@ -111,6 +136,11 @@ export const useAuthStore = defineStore('auth', () => {
       const freshUser = await authService.me()
       user.value = freshUser
       await persistUser(freshUser)
+      await setLastAuthUserId(freshUser.id)
+      if (navigator.onLine) {
+        const syncStore = useSyncStore()
+        await syncStore.syncNow()
+      }
     } catch {
       // Keep local session when offline/temporary network issue.
       if (!cachedUser) {

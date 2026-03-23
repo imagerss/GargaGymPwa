@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted } from 'vue'
+import { computed, onMounted, onUnmounted, watch } from 'vue'
 import { RouterView, useRoute, useRouter } from 'vue-router'
 import Toolbar from 'primevue/toolbar'
 import Button from 'primevue/button'
@@ -32,11 +32,28 @@ const navItems = computed(() => [
   { label: 'Profil', path: '/profile', icon: UserCircle },
 ])
 
+const stopPeriodicSync = () => {
+  if (!periodicSyncTimer) return
+  window.clearInterval(periodicSyncTimer)
+  periodicSyncTimer = null
+}
+
+const startPeriodicSync = () => {
+  if (periodicSyncTimer || !authStore.isAuthenticated) return
+  periodicSyncTimer = window.setInterval(() => {
+    if (authStore.isAuthenticated) {
+      void syncStore.syncIfNeeded()
+    }
+  }, 60 * 1000)
+}
+
 const triggerSync = async () => {
+  if (!authStore.isAuthenticated) return
   await syncStore.syncIfNeeded()
 }
 
 const handleVisibilityOrFocus = async () => {
+  if (!authStore.isAuthenticated) return
   if (document.visibilityState === 'visible') {
     await syncStore.syncIfNeeded()
   }
@@ -48,20 +65,29 @@ const logoutAndRedirect = async () => {
 }
 
 onMounted(async () => {
-  await syncStore.syncIfNeeded()
-  periodicSyncTimer = window.setInterval(() => {
-    void syncStore.syncIfNeeded()
-  }, 60 * 1000)
+  if (authStore.isAuthenticated) {
+    await syncStore.syncIfNeeded()
+    startPeriodicSync()
+  }
   window.addEventListener('online', triggerSync)
   window.addEventListener('focus', handleVisibilityOrFocus)
   document.addEventListener('visibilitychange', handleVisibilityOrFocus)
 })
 
+watch(
+  () => authStore.isAuthenticated,
+  async (isAuthenticated) => {
+    if (isAuthenticated) {
+      startPeriodicSync()
+      await syncStore.syncIfNeeded()
+    } else {
+      stopPeriodicSync()
+    }
+  },
+)
+
 onUnmounted(() => {
-  if (periodicSyncTimer) {
-    window.clearInterval(periodicSyncTimer)
-    periodicSyncTimer = null
-  }
+  stopPeriodicSync()
   window.removeEventListener('online', triggerSync)
   window.removeEventListener('focus', handleVisibilityOrFocus)
   document.removeEventListener('visibilitychange', handleVisibilityOrFocus)

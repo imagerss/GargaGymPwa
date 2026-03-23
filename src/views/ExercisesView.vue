@@ -36,6 +36,7 @@ const addExercise = async () => {
       muscle_group: form.value.muscle_group || null,
     }
     exercises.value = [tempExercise, ...exercises.value]
+    await gymService.upsertExerciseCache(tempExercise)
 
     if (navigator.onLine) {
       const response = await apiClient.post('/exercises', {
@@ -44,10 +45,12 @@ const addExercise = async () => {
       })
       const created = (response.data?.data ?? response.data) as Exercise
       exercises.value = exercises.value.map((exercise) => (exercise.id === tempExercise.id ? created : exercise))
+      await gymService.replaceCachedEntityId('exercises', tempExercise.id, created)
     } else {
       await syncStore.enqueueOperation({
         resource: 'exercises',
         action: 'create',
+        local_entity_id: tempExercise.id,
         data: { name: form.value.name, muscle_group: form.value.muscle_group || null },
       })
     }
@@ -65,6 +68,11 @@ const deleteExercise = async (id: number) => {
   const prev = exercises.value
   exercises.value = exercises.value.filter((exercise) => exercise.id !== id)
   try {
+    await gymService.removeExerciseCache(id)
+    if (id < 0) {
+      await syncStore.discardLocalEntity('exercises', id)
+      return
+    }
     if (navigator.onLine && id > 0) {
       await apiClient.delete(`/exercises/${id}`)
     } else {
@@ -72,6 +80,10 @@ const deleteExercise = async (id: number) => {
     }
   } catch {
     exercises.value = prev
+    const restored = prev.find((exercise) => exercise.id === id)
+    if (restored) {
+      await gymService.upsertExerciseCache(restored)
+    }
   } finally {
     deletingId.value = null
   }

@@ -14,9 +14,15 @@ import { apiClient } from '@/services/apiClient'
 import { gymService, type ProgressPhoto } from '@/services/gymService'
 import { useSyncStore } from '@/stores/sync'
 import { trainingFlowService } from '@/services/trainingFlowService'
+import { db } from '@/db/appDb'
+
+interface LocalPendingPhoto extends ProgressPhoto {
+  pending?: boolean
+  local_data_url?: string
+}
 
 const syncStore = useSyncStore()
-const photos = ref<ProgressPhoto[]>([])
+const photos = ref<LocalPendingPhoto[]>([])
 const loading = ref(false)
 const isUploading = ref(false)
 const deletingId = ref<number | null>(null)
@@ -25,10 +31,81 @@ const note = ref('')
 const uploadError = ref('')
 const sessionPhotos = ref<Array<{ id: string; note: string; taken_at: string; photo_path: string; session_label: string }>>([])
 
+const PENDING_PHOTOS_KEY = 'pending_progress_photos'
+
+const readAsDataUrl = (selectedFile: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result))
+    reader.onerror = () => reject(new Error('Nie udalo sie odczytac pliku'))
+    reader.readAsDataURL(selectedFile)
+  })
+
+const loadPendingPhotos = async (): Promise<LocalPendingPhoto[]> => {
+  const entry = await db.kv.get(PENDING_PHOTOS_KEY)
+  if (!entry?.value) return []
+  try {
+    return JSON.parse(entry.value) as LocalPendingPhoto[]
+  } catch {
+    return []
+  }
+}
+
+const savePendingPhotos = async (pending: LocalPendingPhoto[]) => {
+  if (pending.length === 0) {
+    await db.kv.delete(PENDING_PHOTOS_KEY)
+    return
+  }
+  await db.kv.put({ key: PENDING_PHOTOS_KEY, value: JSON.stringify(pending) })
+}
+
+const removePendingPhoto = async (id: number) => {
+  const pending = await loadPendingPhotos()
+  await savePendingPhotos(pending.filter((photo) => photo.id !== id))
+}
+
+const uploadPendingPhoto = async (photo: LocalPendingPhoto): Promise<ProgressPhoto | null> => {
+  if (!photo.local_data_url) return null
+
+  const blob = await (await fetch(photo.local_data_url)).blob()
+  const ext = blob.type.split('/')[1] || 'jpg'
+  const uploadFile = new File([blob], `photo-${Math.abs(photo.id)}.${ext}`, { type: blob.type || 'image/jpeg' })
+  const formData = new FormData()
+  formData.append('photo', uploadFile, uploadFile.name)
+  formData.append('taken_at', photo.taken_at || new Date().toISOString())
+  if (photo.note?.trim()) formData.append('note', photo.note.trim())
+
+  const response = await apiClient.post('/progress-photos', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+
+  return (response.data?.data ?? response.data) as ProgressPhoto
+}
+
+const flushPendingPhotos = async () => {
+  if (!navigator.onLine) return
+
+  const pending = await loadPendingPhotos()
+  if (pending.length === 0) return
+
+  for (const pendingPhoto of pending) {
+    try {
+      const created = await uploadPendingPhoto(pendingPhoto)
+      if (!created) continue
+      photos.value = photos.value.map((photo) => (photo.id === pendingPhoto.id ? created : photo))
+      await removePendingPhoto(pendingPhoto.id)
+    } catch {
+      // keep for next retry
+    }
+  }
+}
+
 const loadPhotos = async () => {
   loading.value = true
   try {
-    photos.value = await gymService.listProgressPhotos()
+    const remote = await gymService.listProgressPhotos()
+    const pending = await loadPendingPhotos()
+    photos.value = [...pending, ...remote]
     sessionPhotos.value = trainingFlowService
       .listSessionLogs()
       .filter((session) => session.status === 'completed' && session.finish_photo_data_url)
@@ -40,7 +117,7 @@ const loadPhotos = async () => {
         session_label: session.plan_name,
       }))
   } catch {
-    // Keep local state while offline.
+    photos.value = await loadPendingPhotos()
   } finally {
     loading.value = false
   }
@@ -68,9 +145,9 @@ const mergedPhotos = computed(() => {
     raw_id: photo.id,
     note: photo.note || 'Zdjecie progresu',
     taken_at: photo.taken_at || '',
-    photo_path: resolvePhotoUrl(photo.photo_path || ''),
+    photo_path: photo.local_data_url || resolvePhotoUrl(photo.photo_path || ''),
     source: 'manual',
-    source_label: 'Pomiar',
+    source_label: photo.pending ? 'Oczekuje' : 'Pomiar',
     session_label: '',
   }))
 
@@ -116,28 +193,25 @@ const uploadPhoto = async () => {
   uploadError.value = ''
   try {
     const tempId = -Date.now()
-    const tempPreviewUrl = URL.createObjectURL(file.value)
-    photos.value = [{ id: tempId, note: note.value, taken_at: new Date().toISOString(), photo_path: tempPreviewUrl }, ...photos.value]
+    const pendingPhoto: LocalPendingPhoto = {
+      id: tempId,
+      note: note.value,
+      taken_at: new Date().toISOString(),
+      photo_path: '',
+      pending: true,
+      local_data_url: await readAsDataUrl(file.value),
+    }
+    photos.value = [pendingPhoto, ...photos.value]
+    const pending = await loadPendingPhotos()
+    await savePendingPhotos([pendingPhoto, ...pending])
 
     if (navigator.onLine) {
-      const formData = new FormData()
-      formData.append('photo', file.value, file.value.name)
-      formData.append('taken_at', new Date().toISOString())
-      if (note.value.trim()) formData.append('note', note.value.trim())
-
-      const response = await apiClient.post('/progress-photos', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      })
-      const created = (response.data?.data ?? response.data) as ProgressPhoto
+      const created = await uploadPendingPhoto(pendingPhoto)
+      if (!created) return
       photos.value = photos.value.map((photo) => (photo.id === tempId ? created : photo))
+      await removePendingPhoto(tempId)
     } else {
-      // File binary is not queued in current sync contract, so keep visible locally.
-      // We still queue metadata note; user can retry upload when online.
-      await syncStore.enqueueOperation({
-        resource: 'progress_photos',
-        action: 'create',
-        data: { note: note.value.trim(), taken_at: new Date().toISOString() },
-      })
+      // Persisted locally; will be uploaded on next online sync attempt.
     }
 
     file.value = null
@@ -166,6 +240,11 @@ const deletePhoto = async (id: number) => {
   const previous = photos.value
   photos.value = photos.value.filter((photo) => photo.id !== id)
   try {
+    if (id < 0) {
+      await removePendingPhoto(id)
+      return
+    }
+
     if (navigator.onLine && id > 0) {
       await apiClient.delete(`/progress-photos/${id}`)
     } else {
@@ -183,6 +262,7 @@ const deletePhoto = async (id: number) => {
 }
 
 onMounted(loadPhotos)
+onMounted(flushPendingPhotos)
 </script>
 
 <template>

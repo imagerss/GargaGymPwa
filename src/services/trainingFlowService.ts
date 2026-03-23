@@ -4,6 +4,8 @@ export interface PlanExerciseConfig {
   exercise_name: string
   target_sets: number
   target_reps: number
+  workout_day_id?: number
+  workout_day_exercise_id?: number
 }
 
 export interface TrainingPlanConfig {
@@ -45,10 +47,13 @@ export interface ServerSessionSnapshot {
   started_at: string
   status: string
   workout_plan_id?: number | null
+  ended_at?: string | null
+  notes?: string | null
 }
 
 const PLAN_CONFIGS_KEY = 'training_plan_configs_v1'
 const SESSION_LOGS_KEY = 'training_session_logs_v1'
+const DIRTY_PLAN_CONFIGS_KEY = 'training_plan_configs_dirty_v1'
 
 const parseJson = <T>(raw: string | null, fallback: T): T => {
   if (!raw) return fallback
@@ -75,6 +80,35 @@ const setSessionLogs = (sessions: SessionLog[]) => {
   window.localStorage.setItem(SESSION_LOGS_KEY, JSON.stringify(sessions))
 }
 
+const getDirtyPlanConfigIds = (): number[] => parseJson<number[]>(window.localStorage.getItem(DIRTY_PLAN_CONFIGS_KEY), [])
+
+const setDirtyPlanConfigIds = (planIds: number[]) => {
+  window.localStorage.setItem(DIRTY_PLAN_CONFIGS_KEY, JSON.stringify(Array.from(new Set(planIds))))
+}
+
+const parseSnapshotFromNotes = (
+  notes?: string | null,
+): {
+  exercises?: SessionExerciseLog[]
+  finish_weight_kg?: number | null
+  finish_waist_cm?: number | null
+  finish_photo_data_url?: string
+} | null => {
+  if (!notes || !notes.startsWith('PWA_SNAPSHOT:')) return null
+  try {
+    const encoded = notes.slice('PWA_SNAPSHOT:'.length)
+    const decoded = decodeURIComponent(escape(atob(encoded)))
+    return JSON.parse(decoded) as {
+      exercises?: SessionExerciseLog[]
+      finish_weight_kg?: number | null
+      finish_waist_cm?: number | null
+      finish_photo_data_url?: string
+    }
+  } catch {
+    return null
+  }
+}
+
 const buildExercisesFromPlanConfig = (planId: number): SessionExerciseLog[] => {
   const config = getPlanConfigs().find((entry) => entry.plan_id === planId)
   if (!config || config.exercises.length === 0) return []
@@ -92,6 +126,20 @@ const buildExercisesFromPlanConfig = (planId: number): SessionExerciseLog[] => {
 }
 
 export const trainingFlowService = {
+  markPlanConfigDirty(planId: number) {
+    const next = new Set(getDirtyPlanConfigIds())
+    next.add(planId)
+    setDirtyPlanConfigIds(Array.from(next))
+  },
+
+  clearPlanConfigDirty(planId: number) {
+    setDirtyPlanConfigIds(getDirtyPlanConfigIds().filter((entry) => entry !== planId))
+  },
+
+  listDirtyPlanConfigIds(): number[] {
+    return getDirtyPlanConfigIds()
+  },
+
   listPlanConfigs(): TrainingPlanConfig[] {
     return getPlanConfigs()
   },
@@ -105,6 +153,11 @@ export const trainingFlowService = {
     const filtered = getPlanConfigs().filter((entry) => valid.has(entry.plan_id))
     setPlanConfigs(filtered)
     return filtered
+  },
+
+  replacePlanConfigs(configs: TrainingPlanConfig[]): TrainingPlanConfig[] {
+    setPlanConfigs(configs)
+    return configs
   },
 
   addExerciseToPlan(
@@ -151,6 +204,86 @@ export const trainingFlowService = {
   removePlanConfig(planId: number) {
     const filtered = getPlanConfigs().filter((entry) => entry.plan_id !== planId)
     setPlanConfigs(filtered)
+    this.clearPlanConfigDirty(planId)
+  },
+
+  migratePlanConfig(oldPlanId: number, newPlanId: number): TrainingPlanConfig | null {
+    const sessions = getSessionLogs()
+    let sessionsChanged = false
+    for (const session of sessions) {
+      if (session.plan_id === oldPlanId) {
+        session.plan_id = newPlanId
+        sessionsChanged = true
+      }
+    }
+    if (sessionsChanged) {
+      setSessionLogs(sessions)
+    }
+
+    if (oldPlanId === newPlanId) return this.getPlanConfig(newPlanId)
+    const configs = getPlanConfigs()
+    const existing = configs.find((entry) => entry.plan_id === oldPlanId)
+    if (!existing) return null
+
+    const target = configs.find((entry) => entry.plan_id === newPlanId)
+    if (target) {
+      target.exercises = [...target.exercises, ...existing.exercises]
+      target.updated_at = new Date().toISOString()
+      const filtered = configs.filter((entry) => entry.plan_id !== oldPlanId)
+      setPlanConfigs(filtered)
+      if (getDirtyPlanConfigIds().includes(oldPlanId)) {
+        this.clearPlanConfigDirty(oldPlanId)
+        this.markPlanConfigDirty(newPlanId)
+      }
+      return target
+    }
+
+    existing.plan_id = newPlanId
+    existing.updated_at = new Date().toISOString()
+    setPlanConfigs(configs)
+    if (getDirtyPlanConfigIds().includes(oldPlanId)) {
+      this.clearPlanConfigDirty(oldPlanId)
+      this.markPlanConfigDirty(newPlanId)
+    }
+    return existing
+  },
+
+  migrateExerciseReferences(oldExerciseId: number, newExerciseId: number) {
+    const configs = getPlanConfigs()
+    let didChange = false
+
+    for (const config of configs) {
+      for (const exercise of config.exercises) {
+        if (exercise.exercise_id === oldExerciseId) {
+          exercise.exercise_id = newExerciseId
+          didChange = true
+        }
+      }
+    }
+
+    const sessions = getSessionLogs()
+    for (const session of sessions) {
+      for (const exercise of session.exercises) {
+        if (exercise.exercise_id === oldExerciseId) {
+          exercise.exercise_id = newExerciseId
+          didChange = true
+        }
+      }
+    }
+
+    if (didChange) {
+      setPlanConfigs(configs)
+      setSessionLogs(sessions)
+    }
+  },
+
+  attachRemoteSessionId(sessionId: string, remoteSessionId: number) {
+    const sessions = getSessionLogs()
+    const session = sessions.find((entry) => entry.id === sessionId)
+    if (!session) return null
+    session.remote_session_id = remoteSessionId
+    setSessionLogs(sessions)
+    return session
   },
 
   listSessionLogs(): SessionLog[] {
@@ -175,10 +308,15 @@ export const trainingFlowService = {
       const planId = server.workout_plan_id ?? 0
       const existing = localByRemoteId.get(server.id)
       const serverStatus: SessionLog['status'] = server.status === 'completed' ? 'completed' : 'active'
+      const snapshot = parseSnapshotFromNotes(server.notes)
 
       if (existing) {
         const hydratedExercises =
-          existing.exercises.length > 0 ? existing.exercises : buildExercisesFromPlanConfig(planId)
+          existing.exercises.length > 0
+            ? existing.exercises
+            : snapshot?.exercises && snapshot.exercises.length > 0
+              ? snapshot.exercises
+              : buildExercisesFromPlanConfig(planId)
         result.push({
           ...existing,
           remote_session_id: server.id,
@@ -187,6 +325,10 @@ export const trainingFlowService = {
           started_at: server.started_at,
           status: serverStatus,
           exercises: hydratedExercises,
+          finished_at: server.ended_at ?? existing.finished_at,
+          finish_weight_kg: snapshot?.finish_weight_kg ?? existing.finish_weight_kg ?? null,
+          finish_waist_cm: snapshot?.finish_waist_cm ?? existing.finish_waist_cm ?? null,
+          finish_photo_data_url: snapshot?.finish_photo_data_url ?? existing.finish_photo_data_url,
           // Server is source of truth: clear local-only completion metadata unless completed on server.
           ...(serverStatus === 'completed'
             ? {}
@@ -198,7 +340,12 @@ export const trainingFlowService = {
               }),
         })
       } else {
-        const hydratedExercises = serverStatus === 'active' ? buildExercisesFromPlanConfig(planId) : []
+        const hydratedExercises =
+          snapshot?.exercises && snapshot.exercises.length > 0
+            ? snapshot.exercises
+            : serverStatus === 'active'
+              ? buildExercisesFromPlanConfig(planId)
+              : []
         result.push({
           id: `srv-${server.id}`,
           remote_session_id: server.id,
@@ -207,13 +354,17 @@ export const trainingFlowService = {
           started_at: server.started_at,
           status: serverStatus,
           exercises: hydratedExercises,
+          finished_at: server.ended_at ?? undefined,
+          finish_weight_kg: snapshot?.finish_weight_kg ?? null,
+          finish_waist_cm: snapshot?.finish_waist_cm ?? null,
+          finish_photo_data_url: snapshot?.finish_photo_data_url,
         })
       }
     }
 
-    // Keep unsynced drafts only while they are active.
+    // Keep unsynced local sessions (active and completed) until they are mapped to a remote ID.
     for (const entry of local) {
-      if (!entry.remote_session_id && entry.status === 'active') {
+      if (!entry.remote_session_id) {
         result.push(entry)
       }
     }
