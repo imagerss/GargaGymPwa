@@ -1,0 +1,143 @@
+<script setup lang="ts">
+import { onMounted, ref } from 'vue'
+import Card from 'primevue/card'
+import InputText from 'primevue/inputtext'
+import Button from 'primevue/button'
+import { apiClient } from '@/services/apiClient'
+import { gymService, type Goal } from '@/services/gymService'
+import { useSyncStore } from '@/stores/sync'
+
+const syncStore = useSyncStore()
+const goals = ref<Goal[]>([])
+const loading = ref(false)
+const isCreating = ref(false)
+const deletingId = ref<number | null>(null)
+const form = ref({
+  type: 'waga',
+  title: '',
+  target_value: '',
+  current_value: '',
+  unit: 'kg',
+  start_date: new Date().toISOString().slice(0, 10),
+  status: 'active',
+})
+let tempId = -1
+
+const loadGoals = async () => {
+  loading.value = true
+  try {
+    goals.value = await gymService.listGoals()
+  } catch {
+    // Keep local list while offline.
+  } finally {
+    loading.value = false
+  }
+}
+
+const addGoal = async () => {
+  if (!form.value.title.trim() || isCreating.value) return
+  isCreating.value = true
+  try {
+    const payload = {
+      type: form.value.type,
+      title: form.value.title,
+      target_value: Number(form.value.target_value),
+      current_value: form.value.current_value ? Number(form.value.current_value) : null,
+      unit: form.value.unit,
+      start_date: form.value.start_date,
+      status: form.value.status,
+    }
+    const tempGoal: Goal = {
+      id: tempId--,
+      title: payload.title,
+      type: payload.type,
+      target_value: payload.target_value,
+      current_value: payload.current_value,
+      unit: payload.unit,
+      status: payload.status,
+    }
+    goals.value = [tempGoal, ...goals.value]
+
+    if (navigator.onLine) {
+      const response = await apiClient.post('/goals', payload)
+      const created = (response.data?.data ?? response.data) as Goal
+      goals.value = goals.value.map((goal) => (goal.id === tempGoal.id ? created : goal))
+    } else {
+      await syncStore.enqueueOperation({ resource: 'goals', action: 'create', data: payload })
+    }
+    form.value.title = ''
+    form.value.target_value = ''
+  } finally {
+    isCreating.value = false
+  }
+}
+
+onMounted(loadGoals)
+
+const deleteGoal = async (id: number) => {
+  if (deletingId.value) return
+  deletingId.value = id
+  const prev = goals.value
+  goals.value = goals.value.filter((goal) => goal.id !== id)
+  try {
+    if (navigator.onLine && id > 0) {
+      await apiClient.delete(`/goals/${id}`)
+    } else {
+      await syncStore.enqueueOperation({ resource: 'goals', action: 'delete', entity_id: id > 0 ? id : undefined })
+    }
+  } catch {
+    goals.value = prev
+  } finally {
+    deletingId.value = null
+  }
+}
+</script>
+
+<template>
+  <section class="max-w-6xl">
+    <Card class="border border-slate-200 shadow-sm">
+      <template #title>Cele</template>
+      <template #subtitle>Ustaw i monitoruj cele treningowe</template>
+      <template #content>
+        <div class="grid gap-2 md:grid-cols-2">
+          <InputText v-model="form.title" placeholder="Tytul celu" fluid />
+          <InputText v-model="form.target_value" placeholder="Wartosc docelowa" fluid />
+        </div>
+        <div class="mt-2 grid gap-2 md:grid-cols-[1fr_1fr_1fr_auto]">
+          <InputText v-model="form.type" placeholder="Typ" fluid />
+          <InputText v-model="form.unit" placeholder="Jednostka" fluid />
+          <InputText v-model="form.start_date" type="date" fluid />
+          <Button
+            :label="isCreating ? 'Dodaje...' : 'Dodaj cel'"
+            :loading="isCreating"
+            :disabled="isCreating"
+            icon="pi pi-plus"
+            severity="success"
+            @click="addGoal"
+          />
+        </div>
+        <div class="mt-4">
+          <p v-if="loading" class="text-slate-500">Ladowanie...</p>
+          <ul v-else class="space-y-2">
+            <li v-for="goal in goals" :key="goal.id" class="rounded-lg border border-slate-200 bg-white p-3">
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <p class="font-medium">{{ goal.title }}</p>
+                  <p class="text-sm text-slate-500">{{ goal.type }} | {{ goal.target_value }} {{ goal.unit }}</p>
+                </div>
+                <Button
+                  label="Usun"
+                  size="small"
+                  severity="danger"
+                  :loading="deletingId === goal.id"
+                  :disabled="deletingId !== null"
+                  @click="deleteGoal(goal.id)"
+                />
+              </div>
+            </li>
+          </ul>
+        </div>
+      </template>
+    </Card>
+  </section>
+</template>

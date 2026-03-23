@@ -7,7 +7,16 @@ const router = createRouter({
     { path: '/login', name: 'login', component: () => import('@/views/LoginView.vue') },
     { path: '/', name: 'dashboard', component: () => import('@/views/DashboardView.vue'), meta: { auth: true } },
     { path: '/plans', name: 'plans', component: () => import('@/views/PlansView.vue'), meta: { auth: true } },
-    { path: '/progress', name: 'progress', component: () => import('@/views/ProgressView.vue'), meta: { auth: true } },
+    { path: '/sessions', name: 'sessions', component: () => import('@/views/SessionsView.vue'), meta: { auth: true } },
+    { path: '/exercises', name: 'exercises', component: () => import('@/views/ExercisesView.vue'), meta: { auth: true } },
+    {
+      path: '/measurements',
+      name: 'measurements',
+      component: () => import('@/views/MeasurementsView.vue'),
+      meta: { auth: true },
+    },
+    { path: '/photos', name: 'photos', component: () => import('@/views/PhotosView.vue'), meta: { auth: true } },
+    { path: '/profile', name: 'profile', component: () => import('@/views/ProfileView.vue'), meta: { auth: true } },
   ],
 })
 

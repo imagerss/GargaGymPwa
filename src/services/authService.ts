@@ -13,14 +13,9 @@ interface AuthPayload {
 }
 
 const normalizeAuthPayload = (raw: unknown): AuthPayload => {
-  const response = raw as {
-    token?: string
-    user?: AuthUser
-    data?: { token?: string; user?: AuthUser }
-  }
-
-  const token = response.token ?? response.data?.token
-  const user = response.user ?? response.data?.user
+  const response = raw as { token?: string; user?: AuthUser }
+  const token = response.token
+  const user = response.user
 
   if (!token || !user) {
     throw new Error('Niepoprawny format odpowiedzi auth.')
@@ -30,18 +25,8 @@ const normalizeAuthPayload = (raw: unknown): AuthPayload => {
 }
 
 const normalizeUser = (raw: unknown): AuthUser => {
-  const response = raw as {
-    user?: AuthUser
-    data?: AuthUser | { user?: AuthUser }
-  }
-
-  const fromData = response.data && 'id' in (response.data as object) ? (response.data as AuthUser) : undefined
-  const fromNestedData =
-    response.data && 'user' in (response.data as object)
-      ? (response.data as { user?: AuthUser }).user
-      : undefined
-
-  const user = response.user ?? fromData ?? fromNestedData
+  const response = raw as { user?: AuthUser }
+  const user = response.user
   if (!user) {
     throw new Error('Niepoprawny format odpowiedzi /auth/me.')
   }

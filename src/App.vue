@@ -1,49 +1,70 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted } from 'vue'
 import { RouterView, useRoute, useRouter } from 'vue-router'
 import Toolbar from 'primevue/toolbar'
 import Button from 'primevue/button'
-import Tag from 'primevue/tag'
-import { Activity, ClipboardList, Dumbbell, LayoutDashboard, LogOut, Wifi, WifiOff } from 'lucide-vue-next'
+import {
+  Activity,
+  ClipboardList,
+  Dumbbell,
+  LayoutDashboard,
+  ListChecks,
+  LogOut,
+  ScanEye,
+  UserCircle,
+} from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useSyncStore } from '@/stores/sync'
-import { env } from '@/config/env'
 
 const authStore = useAuthStore()
 const syncStore = useSyncStore()
 const router = useRouter()
 const route = useRoute()
+let periodicSyncTimer: number | null = null
 
-let intervalId: number | null = null
-const isOnline = ref(window.navigator.onLine)
 const navItems = computed(() => [
   { label: 'Dashboard', path: '/', icon: LayoutDashboard },
   { label: 'Plany', path: '/plans', icon: ClipboardList },
-  { label: 'Progres', path: '/progress', icon: Activity },
+  { label: 'Sesje', path: '/sessions', icon: ListChecks },
+  { label: 'Cwiczenia', path: '/exercises', icon: Dumbbell },
+  { label: 'Pomiary', path: '/measurements', icon: Activity },
+  { label: 'Zdjecia', path: '/photos', icon: ScanEye },
+  { label: 'Profil', path: '/profile', icon: UserCircle },
 ])
 
 const triggerSync = async () => {
-  await syncStore.syncNow()
+  await syncStore.syncIfNeeded()
 }
 
-const updateOnlineState = () => {
-  isOnline.value = window.navigator.onLine
+const handleVisibilityOrFocus = async () => {
+  if (document.visibilityState === 'visible') {
+    await syncStore.syncIfNeeded()
+  }
+}
+
+const logoutAndRedirect = async () => {
+  await authStore.logout()
+  await router.replace({ name: 'login' })
 }
 
 onMounted(async () => {
-  await syncStore.loadState()
-  updateOnlineState()
+  await syncStore.syncIfNeeded()
+  periodicSyncTimer = window.setInterval(() => {
+    void syncStore.syncIfNeeded()
+  }, 60 * 1000)
   window.addEventListener('online', triggerSync)
-  window.addEventListener('online', updateOnlineState)
-  window.addEventListener('offline', updateOnlineState)
-  intervalId = window.setInterval(triggerSync, env.syncIntervalMs)
+  window.addEventListener('focus', handleVisibilityOrFocus)
+  document.addEventListener('visibilitychange', handleVisibilityOrFocus)
 })
 
 onUnmounted(() => {
+  if (periodicSyncTimer) {
+    window.clearInterval(periodicSyncTimer)
+    periodicSyncTimer = null
+  }
   window.removeEventListener('online', triggerSync)
-  window.removeEventListener('online', updateOnlineState)
-  window.removeEventListener('offline', updateOnlineState)
-  if (intervalId) window.clearInterval(intervalId)
+  window.removeEventListener('focus', handleVisibilityOrFocus)
+  document.removeEventListener('visibilitychange', handleVisibilityOrFocus)
 })
 </script>
 
@@ -77,16 +98,7 @@ onUnmounted(() => {
       </template>
       <template #end>
         <div class="flex items-center gap-2.5">
-          <Tag :severity="isOnline ? 'success' : 'warn'" rounded>
-            <template #default>
-              <span class="flex items-center gap-1.5">
-                <Wifi v-if="isOnline" :size="14" />
-                <WifiOff v-else :size="14" />
-                {{ isOnline ? 'Online' : 'Offline' }}
-              </span>
-            </template>
-          </Tag>
-          <Button label="Wyloguj" size="small" severity="secondary" rounded @click="authStore.logout">
+          <Button label="Wyloguj" size="small" severity="secondary" rounded @click="logoutAndRedirect">
             <template #icon>
               <LogOut :size="16" />
             </template>
@@ -94,12 +106,6 @@ onUnmounted(() => {
         </div>
       </template>
     </Toolbar>
-    <p
-      v-if="authStore.isAuthenticated && !isOnline"
-      class="mt-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-amber-800"
-    >
-      Brak internetu. Zmiany zostana zsynchronizowane po polaczeniu.
-    </p>
     <main class="mx-auto max-w-6xl pt-4">
       <RouterView />
     </main>

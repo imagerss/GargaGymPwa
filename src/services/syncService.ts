@@ -12,6 +12,20 @@ const resources: ResourceName[] = [
   'goals',
 ]
 
+const upsertEntityCache = async (resource: ResourceName, entity: Record<string, unknown>) => {
+  const entityId = Number(entity.id)
+  if (!entityId) return
+
+  const existing = await db.entities.where('[resource+entity_id]').equals([resource, entityId]).first()
+  await db.entities.put({
+    id: existing?.id,
+    resource,
+    entity_id: entityId,
+    payload: entity,
+    updated_at: new Date().toISOString(),
+  })
+}
+
 export const syncService = {
   async queueOperation(payload: {
     resource: ResourceName
@@ -59,12 +73,7 @@ export const syncService = {
     for (const resource of resources) {
       const records = data[resource] ?? []
       for (const entity of records) {
-        await db.entities.put({
-          resource,
-          entity_id: entity.id,
-          payload: entity,
-          updated_at: new Date().toISOString(),
-        })
+        await upsertEntityCache(resource, entity)
       }
 
       const deletions = data.deletions?.[resource] ?? []
