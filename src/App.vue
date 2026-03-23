@@ -1,15 +1,26 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue'
-import { RouterLink, RouterView } from 'vue-router'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { RouterView, useRoute, useRouter } from 'vue-router'
+import Toolbar from 'primevue/toolbar'
+import Button from 'primevue/button'
+import Tag from 'primevue/tag'
+import { Activity, ClipboardList, Dumbbell, LayoutDashboard, LogOut, Wifi, WifiOff } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useSyncStore } from '@/stores/sync'
 import { env } from '@/config/env'
 
 const authStore = useAuthStore()
 const syncStore = useSyncStore()
+const router = useRouter()
+const route = useRoute()
 
 let intervalId: number | null = null
 const isOnline = ref(window.navigator.onLine)
+const navItems = computed(() => [
+  { label: 'Dashboard', path: '/', icon: LayoutDashboard },
+  { label: 'Plany', path: '/plans', icon: ClipboardList },
+  { label: 'Progres', path: '/progress', icon: Activity },
+])
 
 const triggerSync = async () => {
   await syncStore.syncNow()
@@ -38,17 +49,54 @@ onUnmounted(() => {
 
 <template>
   <div class="app-shell">
-    <header class="app-header">
-      <h1>GargaGym PWA</h1>
-      <nav>
-        <RouterLink to="/">Dashboard</RouterLink>
-        <RouterLink to="/plans">Plany</RouterLink>
-        <RouterLink to="/progress">Progres</RouterLink>
-        <button v-if="authStore.isAuthenticated" @click="authStore.logout">Wyloguj</button>
-      </nav>
-    </header>
-    <p v-if="!isOnline" class="offline-banner">Brak internetu. Zmiany zostana zsynchronizowane po polaczeniu.</p>
-    <main>
+    <Toolbar v-if="authStore.isAuthenticated" class="topbar">
+      <template #start>
+        <div class="brand">
+          <Dumbbell :size="18" />
+          <span>GargaGym</span>
+        </div>
+      </template>
+      <template #center>
+        <div class="nav-actions">
+          <Button
+            v-for="item in navItems"
+            :key="item.path"
+            :label="item.label"
+            size="small"
+            :severity="route.path === item.path ? 'success' : 'secondary'"
+            :variant="route.path === item.path ? undefined : 'text'"
+            rounded
+            @click="router.push(item.path)"
+          >
+            <template #icon>
+              <component :is="item.icon" :size="16" />
+            </template>
+          </Button>
+        </div>
+      </template>
+      <template #end>
+        <div class="topbar-right">
+          <Tag :severity="isOnline ? 'success' : 'warn'" rounded>
+            <template #default>
+              <span class="status-chip">
+                <Wifi v-if="isOnline" :size="14" />
+                <WifiOff v-else :size="14" />
+                {{ isOnline ? 'Online' : 'Offline' }}
+              </span>
+            </template>
+          </Tag>
+          <Button label="Wyloguj" size="small" severity="secondary" rounded @click="authStore.logout">
+            <template #icon>
+              <LogOut :size="16" />
+            </template>
+          </Button>
+        </div>
+      </template>
+    </Toolbar>
+    <p v-if="authStore.isAuthenticated && !isOnline" class="offline-banner">
+      Brak internetu. Zmiany zostana zsynchronizowane po polaczeniu.
+    </p>
+    <main class="content">
       <RouterView />
     </main>
   </div>
@@ -57,98 +105,63 @@ onUnmounted(() => {
 <style scoped>
 .app-shell {
   min-height: 100vh;
-  background: #0f172a;
-  color: #e2e8f0;
-  font-family: Inter, system-ui, sans-serif;
-}
-
-.app-header {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 1rem 1.25rem;
-  border-bottom: 1px solid #334155;
-}
-
-nav {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-nav a {
-  color: #22c55e;
-}
-
-main {
-  padding: 1.25rem;
-}
-
-.page {
-  max-width: 860px;
-}
-
-.offline-banner {
-  margin: 0;
-  padding: 0.6rem 1rem;
-  background: #7c2d12;
-  color: #ffedd5;
-}
-
-.container {
-  min-height: calc(100vh - 120px);
-  display: grid;
-  place-items: center;
-}
-
-.card {
-  width: min(420px, 90vw);
-  background: #1e293b;
-  border: 1px solid #334155;
-  border-radius: 0.75rem;
   padding: 1rem;
+  color: #1e293b;
 }
 
-.form {
-  display: grid;
-  gap: 0.65rem;
+.topbar {
+  border-radius: 1rem;
+  border: 1px solid #dbe3ef;
+  background: #ffffff;
 }
 
-.form input,
-button {
-  border-radius: 0.5rem;
-  border: 1px solid #334155;
-  padding: 0.65rem 0.8rem;
-}
-
-button {
-  background: #22c55e;
-  color: #052e16;
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   font-weight: 700;
 }
 
-.error {
-  color: #fca5a5;
-}
-
-.info-grid {
-  display: grid;
-  gap: 0.75rem;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-  margin-bottom: 0.9rem;
-}
-
-.info-card {
-  border: 1px solid #334155;
-  border-radius: 0.5rem;
-  padding: 0.75rem;
-  background: #1e293b;
-}
-
-.inline {
+.nav-actions {
   display: flex;
   gap: 0.5rem;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding-bottom: 0.1rem;
+}
+
+.nav-actions :deep(.p-button) {
+  flex: 0 0 auto;
+}
+
+.nav-actions :deep(.p-button-label) {
+  white-space: nowrap;
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.offline-banner {
+  margin: 0.7rem 0 0;
+  padding: 0.65rem 0.9rem;
+  border-radius: 0.75rem;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #92400e;
+}
+
+.status-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.content {
+  padding: 1rem 0 0;
+  max-width: 72rem;
+  margin: 0 auto;
 }
 </style>

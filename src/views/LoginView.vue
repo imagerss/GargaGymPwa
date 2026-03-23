@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import Card from 'primevue/card'
+import InputText from 'primevue/inputtext'
+import Password from 'primevue/password'
+import Button from 'primevue/button'
+import Message from 'primevue/message'
 import { useAuthStore } from '@/stores/auth'
 
 const authStore = useAuthStore()
@@ -20,24 +25,65 @@ const submit = async () => {
 </script>
 
 <template>
-  <main class="container">
-    <section class="card">
-      <h1>GargaGym</h1>
-      <p>Logowanie do aplikacji PWA</p>
-      <form @submit.prevent="submit" class="form">
-        <input v-model="form.email" type="email" placeholder="Email" autocomplete="email" required />
-        <input
-          v-model="form.password"
-          type="password"
-          placeholder="Haslo"
-          autocomplete="current-password"
-          required
-        />
-        <button :disabled="authStore.loading" type="submit">
-          {{ authStore.loading ? 'Logowanie...' : 'Zaloguj' }}
-        </button>
-      </form>
-      <p v-if="error" class="error">{{ error }}</p>
-    </section>
+  <main class="login-wrap">
+    <Card class="login-card">
+      <template #title>Witaj ponownie</template>
+      <template #subtitle>Zaloguj sie do GargaGym PWA</template>
+      <template #content>
+        <form @submit.prevent="submit" class="form">
+          <label class="field">
+            <span>Email</span>
+            <InputText v-model="form.email" type="email" placeholder="jan@example.com" autocomplete="email" fluid />
+          </label>
+          <label class="field">
+            <span>Haslo</span>
+            <Password v-model="form.password" :feedback="false" toggle-mask placeholder="Twoje haslo" fluid />
+          </label>
+          <Button
+            :label="authStore.loading ? 'Logowanie...' : 'Zaloguj'"
+            icon="pi pi-sign-in"
+            iconPos="right"
+            :loading="authStore.loading"
+            type="submit"
+            severity="success"
+            size="large"
+            fluid
+          />
+        </form>
+        <Message v-if="error" severity="error" class="login-error">{{ error }}</Message>
+      </template>
+    </Card>
   </main>
 </template>
+
+<style scoped>
+.login-wrap {
+  min-height: calc(100vh - 12rem);
+  display: grid;
+  place-items: center;
+}
+
+.login-card {
+  width: min(30rem, 92vw);
+  border-radius: 1rem;
+}
+
+.form {
+  display: grid;
+  gap: 1rem;
+}
+
+.field {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.field span {
+  color: #cbd5e1;
+  font-size: 0.9rem;
+}
+
+.login-error {
+  margin-top: 1rem;
+}
+</style>

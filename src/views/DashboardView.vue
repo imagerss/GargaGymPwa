@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import Card from 'primevue/card'
+import Tag from 'primevue/tag'
+import Button from 'primevue/button'
 import { useAuthStore } from '@/stores/auth'
 import { useSyncStore } from '@/stores/sync'
 
@@ -29,25 +32,99 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <section class="page">
-    <h1>Dashboard</h1>
-    <p>Witaj, {{ authStore.user?.name }}</p>
-    <div class="info-grid">
-      <article class="info-card">
-        <h2>Status</h2>
-        <p>{{ syncStatus }}</p>
-      </article>
-      <article class="info-card">
-        <h2>Operacje w kolejce</h2>
-        <p>{{ syncStore.pendingOperations }}</p>
-      </article>
-      <article class="info-card">
-        <h2>Ostatnia synchronizacja</h2>
-        <p>{{ syncStore.lastSyncAt ?? 'Brak' }}</p>
-      </article>
+  <section class="page dashboard">
+    <div class="hero">
+      <h1>Czesc, {{ authStore.user?.name }}</h1>
+      <p>Twoj panel synchronizacji i podsumowanie danych treningowych.</p>
     </div>
-    <button @click="syncStore.syncNow" :disabled="syncStore.isSyncing || !isOnline">
-      Synchronizuj teraz
-    </button>
+    <div class="info-grid">
+      <Card>
+        <template #content>
+          <div class="metric">
+            <span>Status sieci</span>
+            <Tag :value="syncStatus" :severity="isOnline ? 'success' : 'warn'" />
+          </div>
+        </template>
+      </Card>
+      <Card>
+        <template #content>
+          <div class="metric">
+            <span>Oczekujace zmiany</span>
+            <strong>{{ syncStore.pendingOperations }}</strong>
+          </div>
+        </template>
+      </Card>
+      <Card>
+        <template #content>
+          <div class="metric">
+            <span>Ostatnia synchronizacja</span>
+            <small>{{ syncStore.lastSyncAt ?? 'Brak' }}</small>
+          </div>
+        </template>
+      </Card>
+    </div>
+    <div class="actions">
+      <Button
+        label="Synchronizuj teraz"
+        icon="pi pi-sync"
+        iconPos="right"
+        @click="syncStore.syncNow"
+        :loading="syncStore.isSyncing"
+        :disabled="!isOnline"
+        severity="success"
+      />
+      <Button label="Auto-sync co 45s" icon="pi pi-cloud-upload" variant="outlined" severity="secondary" disabled />
+      <Button label="MVP dashboard" icon="pi pi-clock" variant="text" severity="secondary" disabled />
+    </div>
   </section>
 </template>
+
+<style scoped>
+.dashboard {
+  max-width: 70rem;
+}
+
+.hero {
+  margin-bottom: 1rem;
+}
+
+.hero h1 {
+  margin: 0;
+  font-size: clamp(1.4rem, 2vw, 2rem);
+}
+
+.hero p {
+  margin: 0.45rem 0 0;
+  color: #94a3b8;
+}
+
+.info-grid {
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+}
+
+.metric {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.metric span {
+  color: #94a3b8;
+}
+
+.metric strong {
+  font-size: 1.5rem;
+}
+
+.metric small {
+  font-size: 0.85rem;
+}
+
+.actions {
+  margin-top: 1rem;
+  display: flex;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+</style>
