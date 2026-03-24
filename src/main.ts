@@ -4,6 +4,7 @@ import { registerSW } from 'virtual:pwa-register'
 import PrimeVue from 'primevue/config'
 import Aura from '@primeuix/themes/aura'
 import { definePreset } from '@primeuix/themes'
+import { primeVueLocalePl } from '@/config/primevue-locale-pl'
 
 import App from './App.vue'
 import router from './router'
@@ -38,6 +39,7 @@ app.use(PrimeVue, {
       darkModeSelector: '.app-dark',
     },
   },
+  locale: primeVueLocalePl,
 })
 
 app.mount('#app')

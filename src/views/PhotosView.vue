@@ -187,6 +187,10 @@ const onSelectFile = (event: FileUploadSelectEvent) => {
   file.value = event.files?.[0] ?? null
 }
 
+const clearSelectedFile = () => {
+  file.value = null
+}
+
 const uploadPhoto = async () => {
   if (!file.value || isUploading.value) return
   isUploading.value = true
@@ -266,30 +270,66 @@ onMounted(flushPendingPhotos)
 </script>
 
 <template>
-  <section class="max-w-6xl">
+  <section class="max-w-6xl px-1">
     <Card class="border border-slate-200 shadow-sm">
       <template #title>Zdjecia progresu</template>
       <template #subtitle>Dodaj i usuwaj zdjecia sylwetki</template>
       <template #content>
-        <div class="grid gap-2 md:grid-cols-[1fr_1fr_auto]">
-          <InputText v-model="note" placeholder="Notatka do zdjecia (opcjonalnie)" fluid />
-          <FileUpload
-            mode="basic"
-            accept="image/*"
-            :max-file-size="5000000"
-            choose-label="Wybierz zdjecie"
-            :auto="false"
-            custom-upload
-            @select="onSelectFile"
-          />
-          <Button
-            :label="isUploading ? 'Wysylam...' : 'Dodaj zdjecie'"
-            :loading="isUploading"
-            :disabled="isUploading || !file"
-            icon="pi pi-upload"
-            severity="success"
-            @click="uploadPhoto"
-          />
+        <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+            <InputText v-model="note" placeholder="Notatka do zdjecia (opcjonalnie)" size="small" fluid />
+            <FileUpload
+              accept="image/*"
+              :max-file-size="5000000"
+              :multiple="false"
+              :auto="false"
+              custom-upload
+              class="w-full"
+              @select="onSelectFile"
+              @clear="clearSelectedFile"
+            >
+              <template #header="{ chooseCallback, files, clearCallback }">
+                <div class="flex w-full items-center gap-2">
+                  <Button
+                    type="button"
+                    label="Wybierz plik"
+                    icon="pi pi-image"
+                    severity="secondary"
+                    variant="outlined"
+                    size="small"
+                    class="w-full sm:w-auto"
+                    @click="chooseCallback()"
+                  />
+                  <Button
+                    v-if="files?.length"
+                    type="button"
+                    icon="pi pi-times"
+                    severity="secondary"
+                    text
+                    rounded
+                    size="small"
+                    aria-label="Wyczysc plik"
+                    @click="clearCallback()"
+                  />
+                  <span class="min-w-0 truncate text-sm text-slate-500">
+                    {{ file?.name || 'Nie wybrano pliku' }}
+                  </span>
+                </div>
+              </template>
+              <template #content />
+              <template #empty />
+            </FileUpload>
+            <Button
+              :label="isUploading ? 'Wysylam...' : 'Dodaj zdjecie'"
+              :loading="isUploading"
+              :disabled="isUploading || !file"
+              icon="pi pi-upload"
+              severity="contrast"
+              size="small"
+              class="w-full lg:w-auto"
+              @click="uploadPhoto"
+            />
+          </div>
         </div>
         <div class="mt-4">
           <Message v-if="uploadError" severity="error" class="mb-3">{{ uploadError }}</Message>
@@ -308,13 +348,13 @@ onMounted(flushPendingPhotos)
                     preview
                     image-class="mb-2 h-56 w-full rounded object-cover"
                   />
-                  <div class="flex items-start justify-between gap-2">
+                  <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                       <p class="font-medium">{{ photo.note }}</p>
                       <p class="text-sm text-slate-500">{{ formatDate(photo.taken_at) }}</p>
                       <p v-if="photo.session_label" class="text-sm text-slate-500">Sesja: {{ photo.session_label }}</p>
                     </div>
-                    <Tag :value="photo.source_label" :severity="photo.source === 'session' ? 'warn' : 'info'" />
+                    <Tag :value="photo.source_label" :severity="photo.source === 'session' ? 'contrast' : 'secondary'" />
                   </div>
                   <div class="mt-2 flex items-center gap-2">
                     <Button
@@ -324,6 +364,7 @@ onMounted(flushPendingPhotos)
                       severity="danger"
                       :loading="deletingId === photo.raw_id"
                       :disabled="deletingId !== null"
+                      class="w-full sm:w-auto"
                       @click="deletePhoto(photo.raw_id)"
                     />
                   </div>

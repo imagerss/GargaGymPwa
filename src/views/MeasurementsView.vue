@@ -171,27 +171,32 @@ const deleteMeasurement = async (id: number) => {
 </script>
 
 <template>
-  <section class="max-w-6xl">
+  <section class="max-w-6xl px-1">
     <Card class="border border-slate-200 shadow-sm">
       <template #title>Pomiary ciala</template>
       <template #subtitle>Zapis wagi i pomiarow</template>
       <template #content>
-        <div class="grid gap-2 md:grid-cols-[1fr_1fr_1fr_auto]">
-          <DatePicker v-model="form.measured_at" show-time hour-format="24" fluid />
-          <InputNumber v-model="form.weight" placeholder="Waga (kg)" fluid />
-          <InputNumber v-model="form.waist_cm" placeholder="Talia (cm)" fluid />
-          <Button
-            :label="isCreating ? 'Zapisuje...' : 'Dodaj pomiar'"
-            :loading="isCreating"
-            :disabled="isCreating"
-            icon="pi pi-plus"
-            severity="success"
-            @click="addMeasurement"
-          />
+        <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
+            <DatePicker v-model="form.measured_at" show-time hour-format="24" size="small" fluid />
+            <InputNumber v-model="form.weight" placeholder="Waga (kg)" size="small" fluid />
+            <InputNumber v-model="form.waist_cm" placeholder="Talia (cm)" size="small" fluid />
+            <Button
+              :label="isCreating ? 'Zapisuje...' : 'Dodaj pomiar'"
+              :loading="isCreating"
+              :disabled="isCreating"
+              icon="pi pi-plus"
+              severity="contrast"
+              size="small"
+              class="w-full lg:w-auto"
+              @click="addMeasurement"
+            />
+          </div>
         </div>
         <div class="mt-4">
           <p v-if="loading" class="text-slate-500">Ladowanie...</p>
-          <DataTable v-else :value="allMeasurements" data-key="id" striped-rows size="small">
+          <div v-else class="overflow-x-auto">
+            <DataTable :value="allMeasurements" data-key="id" striped-rows size="small" class="min-w-176">
             <Column field="measured_at" header="Data">
               <template #body="{ data }">
                 {{ formatDate(data.measured_at) }}
@@ -209,7 +214,7 @@ const deleteMeasurement = async (id: number) => {
             </Column>
             <Column field="source" header="Zrodlo">
               <template #body="{ data }">
-                <Tag :value="data.source_label" :severity="data.source === 'session' ? 'warn' : 'info'" />
+                <Tag :value="data.source_label" :severity="data.source === 'session' ? 'contrast' : 'secondary'" />
               </template>
             </Column>
             <Column field="session_label" header="Sesja">
@@ -230,7 +235,8 @@ const deleteMeasurement = async (id: number) => {
                 />
               </template>
             </Column>
-          </DataTable>
+            </DataTable>
+          </div>
         </div>
       </template>
     </Card>

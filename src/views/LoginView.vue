@@ -123,7 +123,7 @@ const submit = async () => {
             iconPos="right"
             :loading="authStore.loading"
             type="submit"
-            severity="success"
+            severity="contrast"
             size="large"
             fluid
           />

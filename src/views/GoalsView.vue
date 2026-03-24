@@ -110,33 +110,37 @@ const deleteGoal = async (id: number) => {
 </script>
 
 <template>
-  <section class="max-w-6xl">
+  <section class="max-w-6xl px-1">
     <Card class="border border-slate-200 shadow-sm">
       <template #title>Cele</template>
       <template #subtitle>Ustaw i monitoruj cele treningowe</template>
       <template #content>
-        <div class="grid gap-2 md:grid-cols-2">
-          <InputText v-model="form.title" placeholder="Tytul celu" fluid />
-          <InputText v-model="form.target_value" placeholder="Wartosc docelowa" fluid />
-        </div>
-        <div class="mt-2 grid gap-2 md:grid-cols-[1fr_1fr_1fr_auto]">
-          <InputText v-model="form.type" placeholder="Typ" fluid />
-          <InputText v-model="form.unit" placeholder="Jednostka" fluid />
-          <InputText v-model="form.start_date" type="date" fluid />
-          <Button
-            :label="isCreating ? 'Dodaje...' : 'Dodaj cel'"
-            :loading="isCreating"
-            :disabled="isCreating"
-            icon="pi pi-plus"
-            severity="success"
-            @click="addGoal"
-          />
+        <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <div class="grid gap-2 sm:grid-cols-2">
+            <InputText v-model="form.title" placeholder="Tytul celu" size="small" fluid />
+            <InputText v-model="form.target_value" placeholder="Wartosc docelowa" size="small" fluid />
+          </div>
+          <div class="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
+            <InputText v-model="form.type" placeholder="Typ" size="small" fluid />
+            <InputText v-model="form.unit" placeholder="Jednostka" size="small" fluid />
+            <InputText v-model="form.start_date" type="date" size="small" fluid />
+            <Button
+              :label="isCreating ? 'Dodaje...' : 'Dodaj cel'"
+              :loading="isCreating"
+              :disabled="isCreating"
+              icon="pi pi-plus"
+              severity="contrast"
+              size="small"
+              class="w-full lg:w-auto"
+              @click="addGoal"
+            />
+          </div>
         </div>
         <div class="mt-4">
           <p v-if="loading" class="text-slate-500">Ladowanie...</p>
           <ul v-else class="space-y-2">
             <li v-for="goal in goals" :key="goal.id" class="rounded-lg border border-slate-200 bg-white p-3">
-              <div class="flex items-start justify-between gap-3">
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <p class="font-medium">{{ goal.title }}</p>
                   <p class="text-sm text-slate-500">{{ goal.type }} | {{ goal.target_value }} {{ goal.unit }}</p>
@@ -147,6 +151,7 @@ const deleteGoal = async (id: number) => {
                   severity="danger"
                   :loading="deletingId === goal.id"
                   :disabled="deletingId !== null"
+                  class="w-full sm:w-auto"
                   @click="deleteGoal(goal.id)"
                 />
               </div>

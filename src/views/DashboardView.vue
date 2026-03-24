@@ -180,6 +180,10 @@ const onSelectCompletePhoto = (event: FileUploadSelectEvent) => {
   completeForm.value.file = event.files?.[0] ?? null
 }
 
+const clearCompletePhoto = () => {
+  completeForm.value.file = null
+}
+
 const updateActiveSetValue = (
   exerciseId: number,
   setNumber: number,
@@ -371,14 +375,14 @@ onMounted(loadDashboard)
 </script>
 
 <template>
-  <section class="max-w-6xl">
-    <div class="mb-4">
+  <section class="max-w-6xl px-1">
+    <div class="mb-4 px-1">
       <h1 class="m-0 text-[clamp(1.4rem,2vw,2rem)] font-semibold">Czesc, {{ authStore.user?.name }}</h1>
       <p class="mt-2 text-slate-500">Twoj panel startowy treningu i progresu.</p>
     </div>
     <Message v-if="actionError" severity="error" class="mb-3">{{ actionError }}</Message>
-    <Message v-if="actionInfo" severity="success" class="mb-3">{{ actionInfo }}</Message>
-    <div class="grid gap-3">
+    <Message v-if="actionInfo" severity="secondary" class="mb-3">{{ actionInfo }}</Message>
+    <div class="grid gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
       <Card class="border border-slate-200 shadow-sm">
         <template #title>Trening</template>
         <template #content>
@@ -397,13 +401,13 @@ onMounted(loadDashboard)
               :label="isStarting ? 'Rozpoczynam...' : 'Rozpocznij sesje teraz'"
               :loading="isStarting"
               :disabled="isStarting || !startPlanId"
-              severity="success"
+              severity="contrast"
               @click="startSessionFromDashboard"
             />
             <div v-if="activeSession" class="rounded-lg border border-slate-200 bg-slate-50 p-2">
-              <div class="mb-1 flex items-center justify-between gap-2">
+              <div class="mb-1 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <span class="text-sm font-medium">{{ activeSessionPlanName }}</span>
-                <Tag value="Aktywna sesja" severity="warn" />
+                <Tag value="Aktywna sesja" severity="contrast" />
               </div>
               <span class="text-sm text-slate-500">Start: {{ formatDate(activeSession.started_at) }}</span>
 
@@ -420,7 +424,7 @@ onMounted(loadDashboard)
                     <div
                       v-for="setItem in exercise.sets"
                       :key="setItem.set_number"
-                      class="grid gap-2 md:grid-cols-[7rem_1fr_1fr]"
+                        class="grid gap-2 sm:grid-cols-[6rem_minmax(0,1fr)_minmax(0,1fr)] sm:items-center"
                     >
                       <span class="text-sm text-slate-500">Seria {{ setItem.set_number }}</span>
                       <InputNumber
@@ -442,29 +446,64 @@ onMounted(loadDashboard)
                 </div>
               </div>
 
-              <div class="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-[1fr_1fr_auto_auto] xl:items-center">
-                <InputNumber v-model="completeForm.weight" placeholder="Waga (kg)" />
-                <InputNumber v-model="completeForm.waist" placeholder="Talia (cm)" />
+              <div class="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto] xl:items-center">
+                <InputNumber v-model="completeForm.weight" placeholder="Waga (kg)" size="small" fluid />
+                <InputNumber v-model="completeForm.waist" placeholder="Talia (cm)" size="small" fluid />
                 <FileUpload
-                  mode="basic"
                   accept="image/*"
                   :max-file-size="5000000"
-                  choose-label="Zdjecie koncowe"
+                  :multiple="false"
                   :auto="false"
                   custom-upload
+                  class="w-full xl:w-auto"
+                  :pt="{ content: { class: 'hidden' } }"
                   @select="onSelectCompletePhoto"
-                />
+                  @clear="clearCompletePhoto"
+                >
+                  <template #header="{ chooseCallback, files, clearCallback }">
+                    <div class="flex w-full items-center gap-2">
+                      <Button
+                        type="button"
+                        label="Zdjecie koncowe"
+                        icon="pi pi-camera"
+                        severity="secondary"
+                        variant="outlined"
+                        size="small"
+                        class="w-full sm:w-auto"
+                        @click="chooseCallback()"
+                      />
+                      <Button
+                        v-if="files?.length"
+                        type="button"
+                        icon="pi pi-times"
+                        severity="secondary"
+                        text
+                        rounded
+                        size="small"
+                        aria-label="Wyczysc zdjecie"
+                        @click="clearCallback()"
+                      />
+                      <span class="min-w-0 truncate text-sm text-slate-500">
+                        {{ completeForm.file?.name || 'Nie wybrano pliku' }}
+                      </span>
+                    </div>
+                  </template>
+                  <template #content />
+                  <template #empty />
+                </FileUpload>
                 <Button
                   :label="isCompleting ? 'Koncze...' : 'Zakoncz aktywna sesje'"
                   :loading="isCompleting"
                   :disabled="isCompleting"
-                  severity="warn"
+                  severity="contrast"
+                  size="small"
+                  class="w-full xl:w-auto"
                   @click="completeActiveSessionFromDashboard"
                 />
               </div>
             </div>
-            <span v-else class="text-slate-500">Brak aktywnej sesji. Mozesz rozpoczac nowa.</span>
-            <Button label="Sesje" size="small" @click="router.push('/sessions')" />
+
+
           </div>
         </template>
       </Card>
@@ -479,7 +518,7 @@ onMounted(loadDashboard)
     </div>
 
     <div v-else class="grid gap-4">
-      <div>
+      <div class="h-72 sm:h-80">
         <Chart
           type="line"
           :data="measurementChartData"
@@ -504,7 +543,7 @@ onMounted(loadDashboard)
           </div>
         </div>
 
-        <div v-if="previewTrendPoint" class="flex items-center justify-between gap-3 text-sm text-slate-600">
+        <div v-if="previewTrendPoint" class="flex flex-col gap-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
           <span>{{ previewTrendPoint.label }}</span>
           <span>Waga: {{ previewTrendPoint.weight ?? '-' }} kg | Talia: {{ previewTrendPoint.waist ?? '-' }} cm</span>
         </div>

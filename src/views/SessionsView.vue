@@ -159,6 +159,11 @@ const onSelectFinishPhoto = (sessionId: string, event: FileUploadSelectEvent) =>
   getFinishForm(sessionId).file = event.files?.[0] ?? null
 }
 
+const clearFinishPhoto = (sessionId: string) => {
+  ensureFinishForm(sessionId)
+  getFinishForm(sessionId).file = null
+}
+
 const completeSession = async (session: SessionLog) => {
   if (finishingSessionId.value) return
   ensureFinishForm(session.id)
@@ -291,30 +296,35 @@ const resolvePhotoUrl = (value?: string) => {
 </script>
 
 <template>
-  <section class="max-w-6xl">
+  <section class="max-w-6xl px-1">
     <Card class="border border-slate-200 shadow-sm">
       <template #title>Sesje treningowe</template>
       <template #subtitle>Wybierz plan, zapisuj serie i zakoncz sesje ze zdjeciem + pomiarem</template>
       <template #content>
-        <div class="grid gap-2 md:grid-cols-[1fr_auto]">
-          <Select
-            v-model="startForm.planId"
-            :options="plans"
-            option-label="name"
-            option-value="id"
-            placeholder="Wybierz plan treningowy"
-            filter
-            show-clear
-            fluid
-          />
-          <Button
-            :label="isCreating ? 'Rozpoczynam...' : 'Rozpocznij sesje'"
-            :loading="isCreating"
-            :disabled="isCreating"
-            icon="pi pi-play"
-            severity="success"
-            @click="startSession"
-          />
+        <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <div class="grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto]">
+            <Select
+              v-model="startForm.planId"
+              :options="plans"
+              option-label="name"
+              option-value="id"
+              placeholder="Wybierz plan treningowy"
+              filter
+              show-clear
+              size="small"
+              fluid
+            />
+            <Button
+              :label="isCreating ? 'Rozpoczynam...' : 'Rozpocznij sesje'"
+              :loading="isCreating"
+              :disabled="isCreating"
+              icon="pi pi-play"
+              severity="contrast"
+              size="small"
+              class="w-full lg:w-auto"
+              @click="startSession"
+            />
+          </div>
         </div>
         <p v-if="infoMessage" class="mt-3 text-sm text-slate-600">{{ infoMessage }}</p>
         <div class="mt-4">
@@ -325,12 +335,12 @@ const resolvePhotoUrl = (value?: string) => {
           <Accordion v-else v-model:value="expandedSessionId">
             <AccordionPanel v-for="session in sessions" :key="session.id" :value="session.id">
               <AccordionHeader>
-                <div class="flex w-full items-center justify-between gap-3 pr-2">
+                <div class="flex w-full flex-col gap-3 pr-2 sm:flex-row sm:items-center sm:justify-between">
                   <div class="min-w-0">
                     <p class="truncate font-medium">{{ session.plan_name }}</p>
                     <p class="text-sm text-slate-500">Start: {{ formatDate(session.started_at) }}</p>
                   </div>
-                  <Tag :value="session.status === 'active' ? 'W trakcie' : 'Zakonczona'" :severity="session.status === 'active' ? 'warn' : 'success'" />
+                  <Tag :value="session.status === 'active' ? 'W trakcie' : 'Zakonczona'" :severity="session.status === 'active' ? 'contrast' : 'secondary'" />
                 </div>
               </AccordionHeader>
               <AccordionContent>
@@ -349,7 +359,7 @@ const resolvePhotoUrl = (value?: string) => {
                       <div
                         v-for="setItem in exercise.sets"
                         :key="setItem.set_number"
-                        class="grid gap-2 md:grid-cols-[6rem_1fr_1fr]"
+                        class="grid gap-2 sm:grid-cols-[6rem_minmax(0,1fr)_minmax(0,1fr)] sm:items-center"
                       >
                         <span class="text-sm text-slate-500">Seria {{ setItem.set_number }}</span>
                         <InputNumber
@@ -378,23 +388,58 @@ const resolvePhotoUrl = (value?: string) => {
 
                   <div v-if="session.status === 'active'" class="rounded-lg border border-dashed border-slate-300 p-3">
                     <p class="mb-2 text-sm font-medium">Zakonczenie sesji</p>
-                    <div class="grid gap-2 md:grid-cols-[1fr_1fr_1fr_auto]">
-                      <InputNumber v-model="getFinishForm(session.id).weight" placeholder="Waga (kg)" />
-                      <InputNumber v-model="getFinishForm(session.id).waist" placeholder="Talia (cm)" />
+                    <div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] xl:items-center">
+                      <InputNumber v-model="getFinishForm(session.id).weight" placeholder="Waga (kg)" size="small" fluid />
+                      <InputNumber v-model="getFinishForm(session.id).waist" placeholder="Talia (cm)" size="small" fluid />
                       <FileUpload
-                        mode="basic"
                         accept="image/*"
                         :max-file-size="5000000"
-                        choose-label="Wybierz zdjecie"
+                        :multiple="false"
                         :auto="false"
                         custom-upload
+                        class="w-full"
+                        :pt="{ content: { class: 'hidden' } }"
                         @select="onSelectFinishPhoto(session.id, $event)"
-                      />
+                        @clear="clearFinishPhoto(session.id)"
+                      >
+                        <template #header="{ chooseCallback, files, clearCallback }">
+                          <div class="flex w-full items-center gap-2">
+                            <Button
+                              type="button"
+                              label="Wybierz zdjecie"
+                              icon="pi pi-camera"
+                              severity="secondary"
+                              variant="outlined"
+                              size="small"
+                              class="w-full sm:w-auto"
+                              @click="chooseCallback()"
+                            />
+                            <Button
+                              v-if="files?.length"
+                              type="button"
+                              icon="pi pi-times"
+                              severity="secondary"
+                              text
+                              rounded
+                              size="small"
+                              aria-label="Wyczysc zdjecie"
+                              @click="clearCallback()"
+                            />
+                            <span class="min-w-0 truncate text-sm text-slate-500">
+                              {{ getFinishForm(session.id).file?.name || 'Nie wybrano pliku' }}
+                            </span>
+                          </div>
+                        </template>
+                        <template #content />
+                        <template #empty />
+                      </FileUpload>
                       <Button
                         label="Zakoncz sesje"
-                        severity="success"
+                        severity="contrast"
                         :loading="finishingSessionId === session.id"
                         :disabled="finishingSessionId !== null"
+                        size="small"
+                        class="w-full xl:w-auto"
                         @click="completeSession(session)"
                       />
                     </div>
@@ -407,7 +452,7 @@ const resolvePhotoUrl = (value?: string) => {
                     <img
                       :src="resolvePhotoUrl(session.finish_photo_data_url)"
                       alt="Zdjecie z konca sesji"
-                      class="max-h-56 rounded object-cover"
+                      class="max-h-56 w-full rounded object-cover sm:w-auto"
                     />
                   </div>
                   <div

@@ -265,21 +265,25 @@ const removeExerciseFromPlan = async (planId: number, configId: string) => {
 </script>
 
 <template>
-  <section class="max-w-6xl">
+  <section class="max-w-6xl px-1">
     <Card class="border border-slate-200 shadow-sm">
       <template #title>Plany treningowe</template>
       <template #subtitle>Utworz plan i dodaj do niego cwiczenia z seria/powtorzeniami</template>
       <template #content>
-        <div class="flex gap-2.5">
-          <InputText v-model="planName" type="text" placeholder="Nazwa planu" fluid />
-          <Button
-            :label="isCreating ? 'Dodaje...' : 'Dodaj plan'"
-            icon="pi pi-plus"
-            :loading="isCreating"
-            :disabled="isCreating"
-            @click="createPlan"
-            severity="success"
-          />
+        <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <InputText v-model="planName" type="text" placeholder="Nazwa planu" size="small" class="w-full sm:max-w-sm" />
+            <Button
+              :label="isCreating ? 'Dodaje...' : 'Dodaj plan'"
+              icon="pi pi-plus"
+              :loading="isCreating"
+              :disabled="isCreating"
+              @click="createPlan"
+              severity="contrast"
+              size="small"
+              class="w-full sm:w-auto"
+            />
+          </div>
         </div>
         <div class="mt-4">
           <Message v-if="deleteError" severity="error" class="mb-3">{{ deleteError }}</Message>
@@ -288,16 +292,17 @@ const removeExerciseFromPlan = async (planId: number, configId: string) => {
           <ul v-else class="space-y-2">
             <li v-for="plan in plans" :key="plan.id" class="rounded-lg border border-slate-200 bg-white p-3">
               <div class="grid gap-3">
-                <div class="flex items-start justify-between gap-3">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <p class="font-medium">{{ plan.name }}</p>
                     <p class="text-sm text-slate-500">{{ plan.description || 'Brak opisu' }}</p>
                   </div>
-                  <div class="flex gap-2">
+                  <div class="grid gap-2 sm:flex">
                     <Button
                       :label="configuringPlanId === plan.id ? 'Ukryj konfiguracje' : 'Konfiguruj plan'"
                       size="small"
                       severity="secondary"
+                      class="w-full sm:w-auto"
                       @click="configuringPlanId = configuringPlanId === plan.id ? null : plan.id"
                     />
                     <Button
@@ -306,6 +311,7 @@ const removeExerciseFromPlan = async (planId: number, configId: string) => {
                       severity="danger"
                       :loading="deletingId === plan.id"
                       :disabled="deletingId !== null"
+                      class="w-full sm:w-auto"
                       @click="deletePlan(plan.id)"
                     />
                   </div>
@@ -319,7 +325,7 @@ const removeExerciseFromPlan = async (planId: number, configId: string) => {
                     <li
                       v-for="item in planConfigMap.get(plan.id)?.exercises ?? []"
                       :key="item.id"
-                      class="flex items-center justify-between gap-2 rounded bg-slate-50 px-2 py-1.5"
+                      class="flex flex-col gap-2 rounded bg-slate-50 px-2 py-1.5 sm:flex-row sm:items-center sm:justify-between"
                     >
                       <span>{{ item.exercise_name }} - {{ item.target_sets }}x{{ item.target_reps }}</span>
                       <Button
@@ -333,7 +339,10 @@ const removeExerciseFromPlan = async (planId: number, configId: string) => {
                   </ul>
                 </div>
 
-                <div v-if="configuringPlanId === plan.id" class="grid gap-2 md:grid-cols-[minmax(0,1fr)_8.5rem_8.5rem_auto]">
+                <div
+                  v-if="configuringPlanId === plan.id"
+                  class="grid gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_8.5rem_8.5rem_auto]"
+                >
                   <Select
                     v-model="getPlanForm(plan.id).exerciseId"
                     :options="exercises"
@@ -365,9 +374,10 @@ const removeExerciseFromPlan = async (planId: number, configId: string) => {
                   <Button
                     :label="savingPlanId === plan.id ? 'Zapisuje...' : 'Dodaj cwiczenie'"
                     size="small"
-                    severity="success"
-                    :loading="savingPlanId === plan.id"
-                    :disabled="savingPlanId !== null"
+                      severity="contrast"
+                      :loading="savingPlanId === plan.id"
+                      :disabled="savingPlanId !== null"
+                      class="w-full lg:w-auto"
                     @click="addExerciseToPlan(plan.id)"
                   />
                 </div>

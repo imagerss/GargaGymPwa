@@ -91,28 +91,32 @@ const deleteExercise = async (id: number) => {
 </script>
 
 <template>
-  <section class="max-w-6xl">
+  <section class="max-w-6xl px-1">
     <Card class="border border-slate-200 shadow-sm">
       <template #title>Cwiczenia</template>
       <template #subtitle>Dodaj i przegladaj cwiczenia</template>
       <template #content>
-        <div class="grid gap-2 md:grid-cols-[1fr_1fr_auto]">
-          <InputText v-model="form.name" placeholder="Nazwa cwiczenia" fluid />
-          <InputText v-model="form.muscle_group" placeholder="Partia miesniowa" fluid />
-          <Button
-            :label="isCreating ? 'Dodaje...' : 'Dodaj'"
-            :loading="isCreating"
-            :disabled="isCreating"
-            icon="pi pi-plus"
-            @click="addExercise"
-            severity="success"
-          />
+        <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+            <InputText v-model="form.name" placeholder="Nazwa cwiczenia" size="small" fluid />
+            <InputText v-model="form.muscle_group" placeholder="Partia miesniowa" size="small" fluid />
+            <Button
+              :label="isCreating ? 'Dodaje...' : 'Dodaj'"
+              :loading="isCreating"
+              :disabled="isCreating"
+              icon="pi pi-plus"
+              @click="addExercise"
+              severity="contrast"
+              size="small"
+              class="w-full lg:w-auto"
+            />
+          </div>
         </div>
         <div class="mt-4">
           <p v-if="loading" class="text-slate-500">Ladowanie...</p>
           <ul v-else class="space-y-2">
             <li v-for="exercise in exercises" :key="exercise.id" class="rounded-lg border border-slate-200 bg-white p-3">
-              <div class="flex items-start justify-between gap-3">
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <p class="font-medium">{{ exercise.name }}</p>
                   <p class="text-sm text-slate-500">{{ exercise.muscle_group || 'Brak partii' }}</p>
@@ -123,6 +127,7 @@ const deleteExercise = async (id: number) => {
                   severity="danger"
                   :loading="deletingId === exercise.id"
                   :disabled="deletingId !== null"
+                  class="w-full sm:w-auto"
                   @click="deleteExercise(exercise.id)"
                 />
               </div>
