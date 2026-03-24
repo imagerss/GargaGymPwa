@@ -14,7 +14,7 @@ import Tag from 'primevue/tag'
 import { apiClient } from '@/services/apiClient'
 import { env } from '@/config/env'
 import { gymService, type BodyMeasurement, type ProgressPhoto, type WorkoutPlan, type WorkoutSession } from '@/services/gymService'
-import { trainingFlowService, type SessionLog } from '@/services/trainingFlowService'
+import { trainingFlowService, type SessionLog, type TrainingPlanConfig } from '@/services/trainingFlowService'
 
 const authStore = useAuthStore()
 const syncStore = useSyncStore()
@@ -48,8 +48,10 @@ const formatDate = (value?: string) => {
 const activeSession = computed(() => sessions.value.find((session) => session.status === 'active') ?? null)
 const activeSessionPlanName = computed(() => {
   const current = activeSession.value
-  if (!current?.workout_plan_id) return 'Plan treningowy'
-  return plans.value.find((plan) => plan.id === current.workout_plan_id)?.name ?? `Plan #${current.workout_plan_id}`
+  if (!current?.workout_plan_id) {
+    return activeSessionLog.value?.plan_name ?? 'Plan treningowy'
+  }
+  return plans.value.find((plan) => plan.id === current.workout_plan_id)?.name ?? activeSessionLog.value?.plan_name ?? `Plan #${current.workout_plan_id}`
 })
 
 const resolvePhotoUrl = (value?: string) => {
@@ -159,14 +161,63 @@ const activeSessionLog = computed<SessionLog | null>(() => {
   return logs.find((item) => item.remote_session_id === current.id && item.status === 'active') ?? null
 })
 
+const hydrateTrainingState = (
+  loadedPlans: WorkoutPlan[],
+  loadedSessions: WorkoutSession[],
+  loadedExercises: Array<{ id: number; name: string }>,
+) => {
+  const exerciseNameById = loadedExercises.reduce<Record<number, string>>((acc, exercise) => {
+    acc[exercise.id] = exercise.name
+    return acc
+  }, {})
+
+  const dirtyPlanIds = new Set(trainingFlowService.listDirtyPlanConfigIds())
+  const nextPlanConfigs: TrainingPlanConfig[] = loadedPlans.map((plan) => {
+    const localDirtyConfig = dirtyPlanIds.has(plan.id) ? trainingFlowService.getPlanConfig(plan.id) : null
+    if (localDirtyConfig) {
+      return localDirtyConfig
+    }
+
+    const day = (plan.workout_days ?? []).slice().sort((a, b) => a.day_order - b.day_order)[0]
+    const dayExercises = (day?.workout_day_exercises ?? []).slice().sort((a, b) => a.sort_order - b.sort_order)
+
+    return {
+      plan_id: plan.id,
+      updated_at: new Date().toISOString(),
+      exercises: dayExercises.map((item) => ({
+        id: String(item.id),
+        exercise_id: item.exercise_id,
+        exercise_name: exerciseNameById[item.exercise_id] ?? `Cwiczenie #${item.exercise_id}`,
+        target_sets: item.target_sets ?? 3,
+        target_reps: item.target_reps_max ?? item.target_reps_min ?? 10,
+        workout_day_id: day?.id,
+        workout_day_exercise_id: item.id,
+      })),
+    }
+  })
+
+  trainingFlowService.replacePlanConfigs(nextPlanConfigs)
+
+  const planNameById = loadedPlans.reduce<Record<number, string>>((acc, plan) => {
+    acc[plan.id] = plan.name
+    return acc
+  }, {})
+
+  trainingFlowService.reconcileSessionLogsWithServer(loadedSessions, planNameById)
+}
+
 const loadDashboard = async () => {
   try {
-    const [loadedSessions, loadedPlans, loadedMeasurements, loadedPhotos] = await Promise.all([
+    const [loadedSessions, loadedPlans, loadedMeasurements, loadedPhotos, loadedExercises] = await Promise.all([
       gymService.listWorkoutSessions(),
       gymService.listWorkoutPlans(),
       gymService.listBodyMeasurements(),
       gymService.listProgressPhotos(),
+      gymService.listExercises(),
     ])
+
+    hydrateTrainingState(loadedPlans, loadedSessions, loadedExercises)
+
     sessions.value = loadedSessions
     plans.value = loadedPlans
     measurements.value = loadedMeasurements

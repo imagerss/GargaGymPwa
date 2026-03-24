@@ -125,6 +125,26 @@ const buildExercisesFromPlanConfig = (planId: number): SessionExerciseLog[] => {
   }))
 }
 
+const resolvePlanName = (
+  planId: number | null | undefined,
+  planNameById: Record<number, string>,
+  existingPlanName?: string,
+) => {
+  if (planId != null && planId > 0 && planNameById[planId]) {
+    return planNameById[planId]
+  }
+
+  if (existingPlanName && existingPlanName !== 'Plan #0') {
+    return existingPlanName
+  }
+
+  if (planId != null && planId > 0) {
+    return `Plan #${planId}`
+  }
+
+  return 'Plan treningowy'
+}
+
 export const trainingFlowService = {
   markPlanConfigDirty(planId: number) {
     const next = new Set(getDirtyPlanConfigIds())
@@ -305,7 +325,7 @@ export const trainingFlowService = {
     }
 
     for (const server of serverSessions) {
-      const planId = server.workout_plan_id ?? 0
+      const planId = server.workout_plan_id ?? null
       const existing = localByRemoteId.get(server.id)
       const serverStatus: SessionLog['status'] = server.status === 'completed' ? 'completed' : 'active'
       const snapshot = parseSnapshotFromNotes(server.notes)
@@ -316,12 +336,12 @@ export const trainingFlowService = {
             ? existing.exercises
             : snapshot?.exercises && snapshot.exercises.length > 0
               ? snapshot.exercises
-              : buildExercisesFromPlanConfig(planId)
+              : buildExercisesFromPlanConfig(planId ?? 0)
         result.push({
           ...existing,
           remote_session_id: server.id,
-          plan_id: planId,
-          plan_name: planNameById[planId] ?? existing.plan_name ?? `Plan #${planId}`,
+          plan_id: planId ?? existing.plan_id ?? 0,
+          plan_name: resolvePlanName(planId, planNameById, existing.plan_name),
           started_at: server.started_at,
           status: serverStatus,
           exercises: hydratedExercises,
@@ -344,13 +364,13 @@ export const trainingFlowService = {
           snapshot?.exercises && snapshot.exercises.length > 0
             ? snapshot.exercises
             : serverStatus === 'active'
-              ? buildExercisesFromPlanConfig(planId)
+              ? buildExercisesFromPlanConfig(planId ?? 0)
               : []
         result.push({
           id: `srv-${server.id}`,
           remote_session_id: server.id,
-          plan_id: planId,
-          plan_name: planNameById[planId] ?? `Plan #${planId}`,
+          plan_id: planId ?? 0,
+          plan_name: resolvePlanName(planId, planNameById),
           started_at: server.started_at,
           status: serverStatus,
           exercises: hydratedExercises,
