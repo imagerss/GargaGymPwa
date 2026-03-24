@@ -43,4 +43,5 @@ __screenshots__/
 .env.*
 !.env.example
 gym-progress-ai-agent.md
-*.cursor
+.cursor/
+.vscode/
