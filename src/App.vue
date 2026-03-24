@@ -132,7 +132,7 @@ onUnmounted(() => {
             <Dumbbell :size="18" />
           </div>
           <div class="min-w-0">
-            <p class="truncate text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">Training PWA</p>
+            <p class="truncate text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">Śledź swoj progres</p>
             <p class="truncate text-lg font-semibold text-slate-950">GargaGym</p>
           </div>
         </div>

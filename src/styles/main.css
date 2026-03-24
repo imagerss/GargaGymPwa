@@ -28,3 +28,17 @@
     @apply max-w-full;
   }
 }
+
+@layer components {
+  .app-upload-field {
+    @apply rounded-xl border border-slate-200 bg-white;
+  }
+
+  .app-upload-inline {
+    @apply flex min-h-10 w-full items-center gap-2 px-2 py-1;
+  }
+
+  .app-upload-name {
+    @apply min-w-0 truncate text-sm text-slate-500;
+  }
+}

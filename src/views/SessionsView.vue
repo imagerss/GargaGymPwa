@@ -4,12 +4,12 @@ import Card from 'primevue/card'
 import Button from 'primevue/button'
 import Select from 'primevue/select'
 import InputNumber from 'primevue/inputnumber'
-import FileUpload, { type FileUploadSelectEvent } from 'primevue/fileupload'
 import Accordion from 'primevue/accordion'
 import AccordionPanel from 'primevue/accordionpanel'
 import AccordionHeader from 'primevue/accordionheader'
 import AccordionContent from 'primevue/accordioncontent'
 import Tag from 'primevue/tag'
+import AppLoadingState from '@/components/AppLoadingState.vue'
 import { apiClient } from '@/services/apiClient'
 import { env } from '@/config/env'
 import { gymService, type WorkoutPlan, type WorkoutSession } from '@/services/gymService'
@@ -154,9 +154,15 @@ const readFileAsDataUrl = (file: File): Promise<string> =>
     reader.readAsDataURL(file)
   })
 
-const onSelectFinishPhoto = (sessionId: string, event: FileUploadSelectEvent) => {
+const openFinishPhotoPicker = (sessionId: string) => {
+  const input = document.getElementById(`finish-photo-${sessionId}`) as HTMLInputElement | null
+  input?.click()
+}
+
+const onSelectFinishPhoto = (sessionId: string, event: Event) => {
   ensureFinishForm(sessionId)
-  getFinishForm(sessionId).file = event.files?.[0] ?? null
+  const target = event.target as HTMLInputElement | null
+  getFinishForm(sessionId).file = target?.files?.[0] ?? null
 }
 
 const clearFinishPhoto = (sessionId: string) => {
@@ -328,7 +334,7 @@ const resolvePhotoUrl = (value?: string) => {
         </div>
         <p v-if="infoMessage" class="mt-3 text-sm text-slate-600">{{ infoMessage }}</p>
         <div class="mt-4">
-          <p v-if="loading" class="text-slate-500">Ladowanie...</p>
+          <AppLoadingState v-if="loading" />
           <div v-else-if="sessions.length === 0" class="rounded-lg border border-slate-200 bg-white p-4 text-slate-500">
             Brak sesji.
           </div>
@@ -340,7 +346,7 @@ const resolvePhotoUrl = (value?: string) => {
                     <p class="truncate font-medium">{{ session.plan_name }}</p>
                     <p class="text-sm text-slate-500">Start: {{ formatDate(session.started_at) }}</p>
                   </div>
-                  <Tag :value="session.status === 'active' ? 'W trakcie' : 'Zakonczona'" :severity="session.status === 'active' ? 'contrast' : 'secondary'" />
+                  <Tag :value="session.status === 'active' ? 'W trakcie' : 'Zakonczona'" :severity="session.status === 'active' ? 'warn' : 'secondary'" />
                 </div>
               </AccordionHeader>
               <AccordionContent>
@@ -388,58 +394,50 @@ const resolvePhotoUrl = (value?: string) => {
 
                   <div v-if="session.status === 'active'" class="rounded-lg border border-dashed border-slate-300 p-3">
                     <p class="mb-2 text-sm font-medium">Zakonczenie sesji</p>
-                    <div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] xl:items-center">
+                    <div class="grid gap-2 sm:grid-cols-2">
                       <InputNumber v-model="getFinishForm(session.id).weight" placeholder="Waga (kg)" size="small" fluid />
                       <InputNumber v-model="getFinishForm(session.id).waist" placeholder="Talia (cm)" size="small" fluid />
-                      <FileUpload
-                        accept="image/*"
-                        :max-file-size="5000000"
-                        :multiple="false"
-                        :auto="false"
-                        custom-upload
-                        class="w-full"
-                        :pt="{ content: { class: 'hidden' } }"
-                        @select="onSelectFinishPhoto(session.id, $event)"
-                        @clear="clearFinishPhoto(session.id)"
-                      >
-                        <template #header="{ chooseCallback, files, clearCallback }">
-                          <div class="flex w-full items-center gap-2">
-                            <Button
-                              type="button"
-                              label="Wybierz zdjecie"
-                              icon="pi pi-camera"
-                              severity="secondary"
-                              variant="outlined"
-                              size="small"
-                              class="w-full sm:w-auto"
-                              @click="chooseCallback()"
-                            />
-                            <Button
-                              v-if="files?.length"
-                              type="button"
-                              icon="pi pi-times"
-                              severity="secondary"
-                              text
-                              rounded
-                              size="small"
-                              aria-label="Wyczysc zdjecie"
-                              @click="clearCallback()"
-                            />
-                            <span class="min-w-0 truncate text-sm text-slate-500">
-                              {{ getFinishForm(session.id).file?.name || 'Nie wybrano pliku' }}
-                            </span>
-                          </div>
-                        </template>
-                        <template #content />
-                        <template #empty />
-                      </FileUpload>
+                      <div class="app-upload-field w-full">
+                        <input
+                          :id="`finish-photo-${session.id}`"
+                          type="file"
+                          accept="image/*"
+                          class="hidden"
+                          @change="onSelectFinishPhoto(session.id, $event)"
+                        />
+                        <div class="app-upload-inline">
+                          <Button
+                            type="button"
+                            label="Zdjecie"
+                            icon="pi pi-camera"
+                            severity="secondary"
+                            variant="outlined"
+                            size="small"
+                            class="w-full sm:w-auto"
+                            @click="openFinishPhotoPicker(session.id)"
+                          />
+                          <Button
+                            v-if="getFinishForm(session.id).file"
+                            type="button"
+                            label="Usun"
+                            severity="danger"
+                            variant="text"
+                            size="small"
+                            class="shrink-0"
+                            @click="clearFinishPhoto(session.id)"
+                          />
+                          <span class="app-upload-name">
+                            {{ getFinishForm(session.id).file?.name || 'Nie wybrano pliku' }}
+                          </span>
+                        </div>
+                      </div>
                       <Button
                         label="Zakoncz sesje"
                         severity="contrast"
                         :loading="finishingSessionId === session.id"
                         :disabled="finishingSessionId !== null"
                         size="small"
-                        class="w-full xl:w-auto"
+                        class="w-full"
                         @click="completeSession(session)"
                       />
                     </div>
@@ -470,3 +468,30 @@ const resolvePhotoUrl = (value?: string) => {
     </Card>
   </section>
 </template>
+
+<style scoped>
+.app-upload-inline {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.app-upload-name {
+  min-width: 0;
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.app-upload-field {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  border-radius: 0.65rem;
+  padding: 0.4rem 0.5rem;
+}
+</style>

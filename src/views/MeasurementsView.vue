@@ -7,6 +7,7 @@ import InputNumber from 'primevue/inputnumber'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Tag from 'primevue/tag'
+import AppLoadingState from '@/components/AppLoadingState.vue'
 import { apiClient } from '@/services/apiClient'
 import { gymService, type BodyMeasurement } from '@/services/gymService'
 import { useSyncStore } from '@/stores/sync'
@@ -194,7 +195,7 @@ const deleteMeasurement = async (id: number) => {
           </div>
         </div>
         <div class="mt-4">
-          <p v-if="loading" class="text-slate-500">Ladowanie...</p>
+          <AppLoadingState v-if="loading" />
           <div v-else class="overflow-x-auto">
             <DataTable :value="allMeasurements" data-key="id" striped-rows size="small" class="min-w-176">
             <Column field="measured_at" header="Data">

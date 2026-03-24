@@ -6,6 +6,7 @@ import Button from 'primevue/button'
 import Select from 'primevue/select'
 import InputNumber from 'primevue/inputnumber'
 import Message from 'primevue/message'
+import AppLoadingState from '@/components/AppLoadingState.vue'
 import { isAxiosError } from 'axios'
 import { apiClient } from '@/services/apiClient'
 import { gymService, type WorkoutPlan } from '@/services/gymService'
@@ -288,7 +289,7 @@ const removeExerciseFromPlan = async (planId: number, configId: string) => {
         <div class="mt-4">
           <Message v-if="deleteError" severity="error" class="mb-3">{{ deleteError }}</Message>
           <Message v-if="configError" severity="error" class="mb-3">{{ configError }}</Message>
-          <p v-if="loading" class="text-slate-500">Ladowanie...</p>
+          <AppLoadingState v-if="loading" />
           <ul v-else class="space-y-2">
             <li v-for="plan in plans" :key="plan.id" class="rounded-lg border border-slate-200 bg-white p-3">
               <div class="grid gap-3">

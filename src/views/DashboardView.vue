@@ -4,7 +4,6 @@ import Card from 'primevue/card'
 import Button from 'primevue/button'
 import Select from 'primevue/select'
 import InputNumber from 'primevue/inputnumber'
-import FileUpload, { type FileUploadSelectEvent } from 'primevue/fileupload'
 import Message from 'primevue/message'
 import Chart from 'primevue/chart'
 import Image from 'primevue/image'
@@ -36,6 +35,7 @@ const completeForm = ref<{ weight: number | null; waist: number | null; file: Fi
   waist: null,
   file: null,
 })
+const completePhotoInput = ref<HTMLInputElement | null>(null)
 let tempSessionId = -1
 
 const formatDate = (value?: string) => {
@@ -176,8 +176,13 @@ const loadDashboard = async () => {
   }
 }
 
-const onSelectCompletePhoto = (event: FileUploadSelectEvent) => {
-  completeForm.value.file = event.files?.[0] ?? null
+const openCompletePhotoPicker = () => {
+  completePhotoInput.value?.click()
+}
+
+const onSelectCompletePhoto = (event: Event) => {
+  const target = event.target as HTMLInputElement | null
+  completeForm.value.file = target?.files?.[0] ?? null
 }
 
 const clearCompletePhoto = () => {
@@ -382,7 +387,7 @@ onMounted(loadDashboard)
     </div>
     <Message v-if="actionError" severity="error" class="mb-3">{{ actionError }}</Message>
     <Message v-if="actionInfo" severity="secondary" class="mb-3">{{ actionInfo }}</Message>
-    <div class="grid gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+    <div class="grid gap-3">
       <Card class="border border-slate-200 shadow-sm">
         <template #title>Trening</template>
         <template #content>
@@ -404,104 +409,98 @@ onMounted(loadDashboard)
               severity="contrast"
               @click="startSessionFromDashboard"
             />
-            <div v-if="activeSession" class="rounded-lg border border-slate-200 bg-slate-50 p-2">
-              <div class="mb-1 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <span class="text-sm font-medium">{{ activeSessionPlanName }}</span>
-                <Tag value="Aktywna sesja" severity="contrast" />
-              </div>
-              <span class="text-sm text-slate-500">Start: {{ formatDate(activeSession.started_at) }}</span>
+            <Transition name="active-session">
+              <div v-if="activeSession" class="rounded-lg border border-slate-200 bg-slate-50 p-2">
+                <div class="mb-1 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <span class="text-sm font-medium">{{ activeSessionPlanName }}</span>
+                  <Tag value="Aktywna sesja" severity="warn" />
+                </div>
+                <span class="text-sm text-slate-500">Start: {{ formatDate(activeSession.started_at) }}</span>
 
-              <div v-if="activeSessionLog" class="mt-2 grid gap-2">
-                <div
-                  v-for="exercise in activeSessionLog.exercises"
-                  :key="`${activeSessionLog.id}-${exercise.exercise_id}`"
-                  class="rounded-lg border border-slate-200 bg-white p-2"
-                >
-                  <p class="mb-2 text-sm font-medium">
-                    {{ exercise.exercise_name }} - cel {{ exercise.target_sets }}x{{ exercise.target_reps }}
-                  </p>
-                  <div class="space-y-1.5">
-                    <div
-                      v-for="setItem in exercise.sets"
-                      :key="setItem.set_number"
+                <div v-if="activeSessionLog" class="mt-2 grid gap-2">
+                  <div
+                    v-for="exercise in activeSessionLog.exercises"
+                    :key="`${activeSessionLog.id}-${exercise.exercise_id}`"
+                    class="rounded-lg border border-slate-200 bg-white p-2"
+                  >
+                    <p class="mb-2 text-sm font-medium">
+                      {{ exercise.exercise_name }} - cel {{ exercise.target_sets }}x{{ exercise.target_reps }}
+                    </p>
+                    <div class="space-y-1.5">
+                      <div
+                        v-for="setItem in exercise.sets"
+                        :key="setItem.set_number"
                         class="grid gap-2 sm:grid-cols-[6rem_minmax(0,1fr)_minmax(0,1fr)] sm:items-center"
-                    >
-                      <span class="text-sm text-slate-500">Seria {{ setItem.set_number }}</span>
-                      <InputNumber
-                        :model-value="setItem.weight_kg"
-                        placeholder="kg"
-                        @update:model-value="
-                          updateActiveSetValue(exercise.exercise_id, setItem.set_number, 'weight_kg', ($event as number | null) ?? null)
-                        "
-                      />
-                      <InputNumber
-                        :model-value="setItem.reps_done"
-                        placeholder="powtorzenia"
-                        @update:model-value="
-                          updateActiveSetValue(exercise.exercise_id, setItem.set_number, 'reps_done', ($event as number | null) ?? null)
-                        "
-                      />
+                      >
+                        <span class="text-sm text-slate-500">Seria {{ setItem.set_number }}</span>
+                        <InputNumber
+                          :model-value="setItem.weight_kg"
+                          placeholder="kg"
+                          @update:model-value="
+                            updateActiveSetValue(exercise.exercise_id, setItem.set_number, 'weight_kg', ($event as number | null) ?? null)
+                          "
+                        />
+                        <InputNumber
+                          :model-value="setItem.reps_done"
+                          placeholder="powtorzenia"
+                          @update:model-value="
+                            updateActiveSetValue(exercise.exercise_id, setItem.set_number, 'reps_done', ($event as number | null) ?? null)
+                          "
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              <div class="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto] xl:items-center">
-                <InputNumber v-model="completeForm.weight" placeholder="Waga (kg)" size="small" fluid />
-                <InputNumber v-model="completeForm.waist" placeholder="Talia (cm)" size="small" fluid />
-                <FileUpload
-                  accept="image/*"
-                  :max-file-size="5000000"
-                  :multiple="false"
-                  :auto="false"
-                  custom-upload
-                  class="w-full xl:w-auto"
-                  :pt="{ content: { class: 'hidden' } }"
-                  @select="onSelectCompletePhoto"
-                  @clear="clearCompletePhoto"
-                >
-                  <template #header="{ chooseCallback, files, clearCallback }">
-                    <div class="flex w-full items-center gap-2">
+                <div class="mt-2 grid gap-2 sm:grid-cols-2">
+                  <InputNumber v-model="completeForm.weight" placeholder="Waga (kg)" size="small" fluid />
+                  <InputNumber v-model="completeForm.waist" placeholder="Talia (cm)" size="small" fluid />
+                  <div class="app-upload-field w-full">
+                    <input
+                      ref="completePhotoInput"
+                      type="file"
+                      accept="image/*"
+                      class="hidden"
+                      @change="onSelectCompletePhoto"
+                    />
+                    <div class="app-upload-inline">
                       <Button
                         type="button"
-                        label="Zdjecie koncowe"
+                        label="Zdjecie"
                         icon="pi pi-camera"
                         severity="secondary"
                         variant="outlined"
                         size="small"
                         class="w-full sm:w-auto"
-                        @click="chooseCallback()"
+                        @click="openCompletePhotoPicker"
                       />
                       <Button
-                        v-if="files?.length"
+                        v-if="completeForm.file"
                         type="button"
-                        icon="pi pi-times"
-                        severity="secondary"
-                        text
-                        rounded
+                        label="Usun"
+                        severity="danger"
+                        variant="text"
                         size="small"
-                        aria-label="Wyczysc zdjecie"
-                        @click="clearCallback()"
+                        class="shrink-0"
+                        @click="clearCompletePhoto"
                       />
-                      <span class="min-w-0 truncate text-sm text-slate-500">
+                      <span class="app-upload-name">
                         {{ completeForm.file?.name || 'Nie wybrano pliku' }}
                       </span>
                     </div>
-                  </template>
-                  <template #content />
-                  <template #empty />
-                </FileUpload>
-                <Button
-                  :label="isCompleting ? 'Koncze...' : 'Zakoncz aktywna sesje'"
-                  :loading="isCompleting"
-                  :disabled="isCompleting"
-                  severity="contrast"
-                  size="small"
-                  class="w-full xl:w-auto"
-                  @click="completeActiveSessionFromDashboard"
-                />
+                  </div>
+                  <Button
+                    :label="isCompleting ? 'Koncze...' : 'Zakoncz aktywna sesje'"
+                    :loading="isCompleting"
+                    :disabled="isCompleting"
+                    severity="contrast"
+                    size="small"
+                    class="w-full"
+                    @click="completeActiveSessionFromDashboard"
+                  />
+                </div>
               </div>
-            </div>
+            </Transition>
 
 
           </div>
@@ -518,7 +517,7 @@ onMounted(loadDashboard)
     </div>
 
     <div v-else class="grid gap-4">
-      <div class="h-72 sm:h-80">
+      <div class="">
         <Chart
           type="line"
           :data="measurementChartData"
@@ -554,3 +553,55 @@ onMounted(loadDashboard)
     </div>
   </section>
 </template>
+
+<style scoped>
+.active-session-enter-active,
+.active-session-leave-active {
+  transition:
+    opacity 180ms ease,
+    transform 220ms ease,
+    max-height 220ms ease;
+  overflow: hidden;
+}
+
+.active-session-enter-from,
+.active-session-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
+  max-height: 0;
+}
+
+.active-session-enter-to,
+.active-session-leave-from {
+  opacity: 1;
+  transform: translateY(0);
+  max-height: 1200px;
+}
+</style>
+
+<style scoped>
+.app-upload-inline {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.app-upload-name {
+  min-width: 0;
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.app-upload-field {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  border-radius: 0.65rem;
+  padding: 0.4rem 0.5rem;
+}
+</style>

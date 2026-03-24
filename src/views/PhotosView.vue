@@ -3,11 +3,11 @@ import { computed, onMounted, ref } from 'vue'
 import Card from 'primevue/card'
 import InputText from 'primevue/inputtext'
 import Button from 'primevue/button'
-import FileUpload, { type FileUploadSelectEvent } from 'primevue/fileupload'
 import DataView from 'primevue/dataview'
 import Tag from 'primevue/tag'
 import Image from 'primevue/image'
 import Message from 'primevue/message'
+import AppLoadingState from '@/components/AppLoadingState.vue'
 import { isAxiosError } from 'axios'
 import { env } from '@/config/env'
 import { apiClient } from '@/services/apiClient'
@@ -27,6 +27,7 @@ const loading = ref(false)
 const isUploading = ref(false)
 const deletingId = ref<number | null>(null)
 const file = ref<File | null>(null)
+const photoInput = ref<HTMLInputElement | null>(null)
 const note = ref('')
 const uploadError = ref('')
 const sessionPhotos = ref<Array<{ id: string; note: string; taken_at: string; photo_path: string; session_label: string }>>([])
@@ -183,8 +184,13 @@ const formatDate = (value?: string) => {
   return new Intl.DateTimeFormat('pl-PL', { dateStyle: 'medium', timeStyle: 'short' }).format(date)
 }
 
-const onSelectFile = (event: FileUploadSelectEvent) => {
-  file.value = event.files?.[0] ?? null
+const openPhotoPicker = () => {
+  photoInput.value?.click()
+}
+
+const onSelectFile = (event: Event) => {
+  const target = event.target as HTMLInputElement | null
+  file.value = target?.files?.[0] ?? null
 }
 
 const clearSelectedFile = () => {
@@ -278,47 +284,40 @@ onMounted(flushPendingPhotos)
         <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
           <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
             <InputText v-model="note" placeholder="Notatka do zdjecia (opcjonalnie)" size="small" fluid />
-            <FileUpload
-              accept="image/*"
-              :max-file-size="5000000"
-              :multiple="false"
-              :auto="false"
-              custom-upload
-              class="w-full"
-              @select="onSelectFile"
-              @clear="clearSelectedFile"
-            >
-              <template #header="{ chooseCallback, files, clearCallback }">
-                <div class="flex w-full items-center gap-2">
-                  <Button
-                    type="button"
-                    label="Wybierz plik"
-                    icon="pi pi-image"
-                    severity="secondary"
-                    variant="outlined"
-                    size="small"
-                    class="w-full sm:w-auto"
-                    @click="chooseCallback()"
-                  />
-                  <Button
-                    v-if="files?.length"
-                    type="button"
-                    icon="pi pi-times"
-                    severity="secondary"
-                    text
-                    rounded
-                    size="small"
-                    aria-label="Wyczysc plik"
-                    @click="clearCallback()"
-                  />
-                  <span class="min-w-0 truncate text-sm text-slate-500">
-                    {{ file?.name || 'Nie wybrano pliku' }}
-                  </span>
-                </div>
-              </template>
-              <template #content />
-              <template #empty />
-            </FileUpload>
+            <div class="app-upload-field w-full">
+              <input
+                ref="photoInput"
+                type="file"
+                accept="image/*"
+                class="hidden"
+                @change="onSelectFile"
+              />
+              <div class="app-upload-inline">
+                <Button
+                  type="button"
+                  label="Zdjecie"
+                  icon="pi pi-camera"
+                  severity="secondary"
+                  variant="outlined"
+                  size="small"
+                  class="w-full sm:w-auto"
+                  @click="openPhotoPicker"
+                />
+                <Button
+                  v-if="file"
+                  type="button"
+                  label="Usun"
+                  severity="danger"
+                  variant="text"
+                  size="small"
+                  class="shrink-0"
+                  @click="clearSelectedFile"
+                />
+                <span class="app-upload-name">
+                  {{ file?.name || 'Nie wybrano pliku' }}
+                </span>
+              </div>
+            </div>
             <Button
               :label="isUploading ? 'Wysylam...' : 'Dodaj zdjecie'"
               :loading="isUploading"
@@ -333,7 +332,7 @@ onMounted(flushPendingPhotos)
         </div>
         <div class="mt-4">
           <Message v-if="uploadError" severity="error" class="mb-3">{{ uploadError }}</Message>
-          <p v-if="loading" class="text-slate-500">Ladowanie...</p>
+          <AppLoadingState v-if="loading" />
           <div v-else-if="mergedPhotos.length === 0" class="rounded-lg border border-slate-200 bg-white p-4 text-slate-500">
             Brak zdjec.
           </div>
@@ -354,7 +353,10 @@ onMounted(flushPendingPhotos)
                       <p class="text-sm text-slate-500">{{ formatDate(photo.taken_at) }}</p>
                       <p v-if="photo.session_label" class="text-sm text-slate-500">Sesja: {{ photo.session_label }}</p>
                     </div>
-                    <Tag :value="photo.source_label" :severity="photo.source === 'session' ? 'contrast' : 'secondary'" />
+                    <Tag
+                      :value="photo.source_label"
+                      :severity="photo.source === 'session' ? 'secondary' : photo.source_label === 'Oczekuje' ? 'warn' : 'secondary'"
+                    />
                   </div>
                   <div class="mt-2 flex items-center gap-2">
                     <Button
@@ -377,3 +379,30 @@ onMounted(flushPendingPhotos)
     </Card>
   </section>
 </template>
+
+<style scoped>
+.app-upload-inline {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.app-upload-name {
+  min-width: 0;
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.app-upload-field {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  border-radius: 0.65rem;
+  padding: 0.4rem 0.5rem;
+}
+</style>

@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue'
 import Card from 'primevue/card'
 import InputText from 'primevue/inputtext'
 import Button from 'primevue/button'
+import AppLoadingState from '@/components/AppLoadingState.vue'
 import { apiClient } from '@/services/apiClient'
 import { gymService, type Goal } from '@/services/gymService'
 import { useSyncStore } from '@/stores/sync'
@@ -137,7 +138,7 @@ const deleteGoal = async (id: number) => {
           </div>
         </div>
         <div class="mt-4">
-          <p v-if="loading" class="text-slate-500">Ladowanie...</p>
+          <AppLoadingState v-if="loading" />
           <ul v-else class="space-y-2">
             <li v-for="goal in goals" :key="goal.id" class="rounded-lg border border-slate-200 bg-white p-3">
               <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
