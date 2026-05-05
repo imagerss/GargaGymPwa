@@ -10,6 +10,7 @@ import Image from 'primevue/image'
 import { useSyncStore } from '@/stores/sync'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
+import AppLoadingState from '@/components/AppLoadingState.vue'
 import Tag from 'primevue/tag'
 import { apiClient } from '@/services/apiClient'
 import { env } from '@/config/env'
@@ -26,6 +27,8 @@ const photos = ref<ProgressPhoto[]>([])
 const startPlanId = ref<number | null>(null)
 const isStarting = ref(false)
 const isCompleting = ref(false)
+const isDashboardLoading = ref(true)
+const hasDashboardLoaded = ref(false)
 const actionError = ref('')
 const actionInfo = ref('')
 const hoveredPointIndex = ref<number | null>(null)
@@ -194,6 +197,7 @@ const hydrateTrainingState = (
 }
 
 const loadDashboard = async () => {
+  isDashboardLoading.value = true
   try {
     const [loadedSessions, loadedPlans, loadedMeasurements, loadedPhotos, loadedExercises] = await Promise.all([
       gymService.listWorkoutSessions(),
@@ -211,6 +215,9 @@ const loadDashboard = async () => {
     photos.value = loadedPhotos
   } catch {
     // Keep dashboard available offline without throwing.
+  } finally {
+    hasDashboardLoaded.value = true
+    isDashboardLoading.value = false
   }
 }
 
@@ -475,7 +482,9 @@ onMounted(loadDashboard)
     </div>
     <Message v-if="actionError" severity="error" class="mb-3">{{ actionError }}</Message>
     <Message v-if="actionInfo" severity="secondary" class="mb-3">{{ actionInfo }}</Message>
-    <div class="grid gap-3">
+    <AppLoadingState v-if="isDashboardLoading && !hasDashboardLoaded" label="Ladowanie dashboardu" />
+    <div v-else class="grid gap-3">
+      <AppLoadingState v-if="isDashboardLoading" label="Odswiezanie danych" />
       <Card class="border border-slate-200 shadow-sm">
         <template #title>Trening</template>
         <template #content>

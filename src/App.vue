@@ -128,9 +128,11 @@ onUnmounted(() => {
     >
       <div class="flex items-center justify-between gap-3">
         <div class="flex min-w-0 items-center gap-3">
-          <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-sm">
-            <Dumbbell :size="18" />
-          </div>
+          <img
+            src="/gargagym-logo.png"
+            alt=""
+            class="h-11 w-11 rounded-2xl object-cover shadow-sm"
+          />
           <div class="min-w-0">
             <p class="truncate text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">Śledź swoj progres</p>
             <p class="truncate text-lg font-semibold text-slate-950">GargaGym</p>

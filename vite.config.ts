@@ -14,7 +14,16 @@ export default defineConfig({
     vueDevTools(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'pwa-192.svg', 'pwa-512.svg'],
+      includeAssets: [
+        'favicon.png',
+        'favicon.ico',
+        'pwa-192.png',
+        'pwa-512.png',
+        'pwa-maskable-192.png',
+        'pwa-maskable-512.png',
+        'apple-touch-icon.png',
+        'gargagym-logo.png',
+      ],
       manifest: {
         name: 'GargaGym PWA',
         short_name: 'GargaGym',
@@ -25,14 +34,28 @@ export default defineConfig({
         start_url: '/',
         icons: [
           {
-            src: '/pwa-192.svg',
+            src: '/pwa-192.png',
             sizes: '192x192',
-            type: 'image/svg+xml',
+            type: 'image/png',
+            purpose: 'any',
           },
           {
-            src: '/pwa-512.svg',
+            src: '/pwa-512.png',
             sizes: '512x512',
-            type: 'image/svg+xml',
+            type: 'image/png',
+            purpose: 'any',
+          },
+          {
+            src: '/pwa-maskable-192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
+          {
+            src: '/pwa-maskable-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
           },
         ],
       },
