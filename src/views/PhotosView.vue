@@ -13,7 +13,6 @@ import { env } from '@/config/env'
 import { apiClient } from '@/services/apiClient'
 import { gymService, type ProgressPhoto } from '@/services/gymService'
 import { useSyncStore } from '@/stores/sync'
-import { trainingFlowService } from '@/services/trainingFlowService'
 import { db } from '@/db/appDb'
 
 interface LocalPendingPhoto extends ProgressPhoto {
@@ -30,7 +29,6 @@ const file = ref<File | null>(null)
 const photoInput = ref<HTMLInputElement | null>(null)
 const note = ref('')
 const uploadError = ref('')
-const sessionPhotos = ref<Array<{ id: string; note: string; taken_at: string; photo_path: string; session_label: string }>>([])
 
 const PENDING_PHOTOS_KEY = 'pending_progress_photos'
 
@@ -107,16 +105,6 @@ const loadPhotos = async () => {
     const remote = await gymService.listProgressPhotos()
     const pending = await loadPendingPhotos()
     photos.value = [...pending, ...remote]
-    sessionPhotos.value = trainingFlowService
-      .listSessionLogs()
-      .filter((session) => session.status === 'completed' && session.finish_photo_data_url)
-      .map((session) => ({
-        id: session.id,
-        note: `Sesja ${session.plan_name}`,
-        taken_at: session.finished_at ?? session.started_at,
-        photo_path: session.finish_photo_data_url!,
-        session_label: session.plan_name,
-      }))
   } catch {
     photos.value = await loadPendingPhotos()
   } finally {
@@ -125,12 +113,6 @@ const loadPhotos = async () => {
 }
 
 const mergedPhotos = computed(() => {
-  const toMs = (value?: string) => {
-    if (!value) return 0
-    const parsed = Date.parse(value)
-    return Number.isNaN(parsed) ? 0 : parsed
-  }
-
   const resolvePhotoUrl = (value?: string) => {
     if (!value) return ''
     if (/^https?:\/\//i.test(value) || value.startsWith('data:')) return value
@@ -141,7 +123,7 @@ const mergedPhotos = computed(() => {
     return `${backendOrigin}/${value}`
   }
 
-  const serverRows = photos.value.map((photo) => ({
+  return photos.value.map((photo) => ({
     id: `srv-${photo.id}`,
     raw_id: photo.id,
     note: photo.note || 'Zdjecie progresu',
@@ -150,31 +132,7 @@ const mergedPhotos = computed(() => {
     source: 'manual',
     source_label: photo.pending ? 'Oczekuje' : 'Pomiar',
     session_label: '',
-  }))
-
-  const sessionRows = sessionPhotos.value.map((photo) => ({
-    id: `session-${photo.id}`,
-    raw_id: photo.id,
-    note: photo.note,
-    taken_at: photo.taken_at,
-    photo_path: resolvePhotoUrl(photo.photo_path),
-    source: 'session',
-    source_label: 'Z sesji',
-    session_label: photo.session_label,
-  }))
-
-  const dedupedServerRows = serverRows.filter((serverRow) => {
-    return !sessionRows.some((sessionRow) => {
-      const closeTime = Math.abs(toMs(sessionRow.taken_at) - toMs(serverRow.taken_at)) <= 2 * 60 * 1000
-      const sameSessionNote =
-        Boolean(serverRow.note) &&
-        (serverRow.note.toLowerCase() === sessionRow.note.toLowerCase() ||
-          serverRow.note.toLowerCase().includes(sessionRow.session_label.toLowerCase()))
-      return closeTime && sameSessionNote
-    })
-  })
-
-  return [...sessionRows, ...dedupedServerRows].sort((a, b) => b.taken_at.localeCompare(a.taken_at))
+  })).sort((a, b) => b.taken_at.localeCompare(a.taken_at))
 })
 
 const formatDate = (value?: string) => {
@@ -355,12 +313,11 @@ onMounted(flushPendingPhotos)
                     </div>
                     <Tag
                       :value="photo.source_label"
-                      :severity="photo.source === 'session' ? 'secondary' : photo.source_label === 'Oczekuje' ? 'warn' : 'secondary'"
+                      :severity="photo.source_label === 'Oczekuje' ? 'warn' : 'secondary'"
                     />
                   </div>
                   <div class="mt-2 flex items-center gap-2">
                     <Button
-                      v-if="photo.source === 'manual'"
                       label="Usun"
                       size="small"
                       severity="danger"

@@ -11,13 +11,9 @@ import AppLoadingState from '@/components/AppLoadingState.vue'
 import { apiClient } from '@/services/apiClient'
 import { gymService, type BodyMeasurement } from '@/services/gymService'
 import { useSyncStore } from '@/stores/sync'
-import { trainingFlowService } from '@/services/trainingFlowService'
 
 const syncStore = useSyncStore()
 const measurements = ref<BodyMeasurement[]>([])
-const sessionMeasurements = ref<
-  Array<{ id: string; measured_at: string; weight: number | null; waist_cm: number | null; session_label: string }>
->([])
 const loading = ref(false)
 const isCreating = ref(false)
 const deletingId = ref<number | null>(null)
@@ -32,16 +28,6 @@ const loadMeasurements = async () => {
   loading.value = true
   try {
     measurements.value = await gymService.listBodyMeasurements()
-    sessionMeasurements.value = trainingFlowService
-      .listSessionLogs()
-      .filter((session) => session.status === 'completed' && (session.finish_weight_kg !== null || session.finish_waist_cm !== null))
-      .map((session) => ({
-        id: session.id,
-        measured_at: session.finished_at ?? session.started_at,
-        weight: session.finish_weight_kg ?? null,
-        waist_cm: session.finish_waist_cm ?? null,
-        session_label: session.plan_name,
-      }))
   } catch {
     // Keep local list while offline.
   } finally {
@@ -50,12 +36,7 @@ const loadMeasurements = async () => {
 }
 
 const allMeasurements = computed(() => {
-  const toMs = (value: string) => {
-    const parsed = Date.parse(value)
-    return Number.isNaN(parsed) ? 0 : parsed
-  }
-
-  const serverRows = measurements.value.map((item) => ({
+  return measurements.value.map((item) => ({
     id: `srv-${item.id}`,
     measured_at: item.measured_at,
     weight: item.weight ?? null,
@@ -64,31 +45,7 @@ const allMeasurements = computed(() => {
     source_label: 'Pomiar',
     session_label: '',
     raw_id: item.id,
-  }))
-
-  const sessionRows = sessionMeasurements.value.map((item) => ({
-    id: `session-${item.id}`,
-    measured_at: item.measured_at,
-    weight: item.weight,
-    waist_cm: item.waist_cm,
-    source: 'session',
-    source_label: 'Z sesji',
-    session_label: item.session_label,
-    raw_id: item.id,
-  }))
-
-  // Completing a session can create two entries: session snapshot + body_measurement API record.
-  // Hide the duplicate server row when values and timestamp match close enough.
-  const dedupedServerRows = serverRows.filter((serverRow) => {
-    return !sessionRows.some((sessionRow) => {
-      const sameWeight = (sessionRow.weight ?? null) === (serverRow.weight ?? null)
-      const sameWaist = (sessionRow.waist_cm ?? null) === (serverRow.waist_cm ?? null)
-      const closeTime = Math.abs(toMs(sessionRow.measured_at) - toMs(serverRow.measured_at)) <= 2 * 60 * 1000
-      return sameWeight && sameWaist && closeTime
-    })
-  })
-
-  return [...sessionRows, ...dedupedServerRows].sort((a, b) => b.measured_at.localeCompare(a.measured_at))
+  })).sort((a, b) => b.measured_at.localeCompare(a.measured_at))
 })
 
 const formatDate = (value: string) => {
@@ -215,7 +172,7 @@ const deleteMeasurement = async (id: number) => {
             </Column>
             <Column field="source" header="Zrodlo">
               <template #body="{ data }">
-                <Tag :value="data.source_label" :severity="data.source === 'session' ? 'contrast' : 'secondary'" />
+                <Tag :value="data.source_label" severity="secondary" />
               </template>
             </Column>
             <Column field="session_label" header="Sesja">
@@ -226,7 +183,6 @@ const deleteMeasurement = async (id: number) => {
             <Column header="Akcje">
               <template #body="{ data }">
                 <Button
-                  v-if="data.source === 'manual'"
                   label="Usun"
                   size="small"
                   severity="danger"

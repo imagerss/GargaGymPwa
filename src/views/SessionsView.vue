@@ -74,6 +74,7 @@ const startSession = async () => {
     }
 
     let remoteSessionId: number | null = null
+    let createdRemoteSession: WorkoutSession | undefined
     if (navigator.onLine) {
       try {
         const response = await apiClient.post('/workout-sessions', {
@@ -81,7 +82,8 @@ const startSession = async () => {
           started_at: new Date().toISOString(),
           status: 'active',
         })
-        const createdRemote = (response.data?.data ?? response.data) as Partial<WorkoutSession>
+        const createdRemote = (response.data?.data ?? response.data) as WorkoutSession
+        createdRemoteSession = createdRemote
         remoteSessionId = createdRemote?.id ?? null
         if (createdRemote?.id && createdRemote.started_at && createdRemote.status) {
           await gymService.upsertWorkoutSessionCache({
@@ -117,7 +119,7 @@ const startSession = async () => {
       })
     }
 
-    const created = trainingFlowService.createSessionFromPlan(plan, remoteSessionId)
+    const created = trainingFlowService.createSessionFromPlan(plan, remoteSessionId, createdRemoteSession)
     if (!created) {
       infoMessage.value = 'Ten plan nie ma jeszcze przypisanych cwiczen.'
       return
@@ -170,6 +172,49 @@ const clearFinishPhoto = (sessionId: string) => {
   getFinishForm(sessionId).file = null
 }
 
+const collectCompletedSets = (session: SessionLog) =>
+  session.exercises.flatMap((exercise) =>
+    exercise.sets
+      .filter((setItem) => exercise.workout_session_exercise_id && setItem.reps_done != null && setItem.weight_kg != null)
+      .map((setItem) => ({
+        workout_session_exercise_id: exercise.workout_session_exercise_id!,
+        set_number: setItem.set_number,
+        reps: setItem.reps_done!,
+        weight: setItem.weight_kg!,
+      })),
+  )
+
+const buildCompletionPayload = (
+  session: SessionLog,
+  endedAt: string,
+  weight: number | null,
+  waist: number | null,
+  photoDataUrl?: string,
+  persistedPhotoPath?: string,
+) => ({
+  ended_at: endedAt,
+  sets: collectCompletedSets(session),
+  ...(weight != null
+    ? {
+        measurement: {
+          measured_at: endedAt,
+          weight,
+          waist_cm: waist,
+        },
+      }
+    : {}),
+  ...(persistedPhotoPath || photoDataUrl
+    ? {
+        progress_photo: {
+          photo_path: persistedPhotoPath,
+          photo_data_url: persistedPhotoPath ? undefined : photoDataUrl,
+          taken_at: endedAt,
+          note: `Sesja ${session.plan_name}`,
+        },
+      }
+    : {}),
+})
+
 const completeSession = async (session: SessionLog) => {
   if (finishingSessionId.value) return
   ensureFinishForm(session.id)
@@ -178,7 +223,6 @@ const completeSession = async (session: SessionLog) => {
   finishingSessionId.value = session.id
   try {
     let photoDataUrl: string | undefined
-    let persistedPhotoPath: string | undefined
     if (form.file) {
       photoDataUrl = await readFileAsDataUrl(form.file)
     }
@@ -191,57 +235,34 @@ const completeSession = async (session: SessionLog) => {
       finish_waist_cm: waist,
     })
 
-    if (navigator.onLine && form.file) {
-      try {
-        const photoFormData = new FormData()
-        photoFormData.append('photo', form.file)
-        photoFormData.append('taken_at', new Date().toISOString())
-        photoFormData.append('note', `Sesja ${session.plan_name}`)
-        const photoResponse = await apiClient.post('/progress-photos', photoFormData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        })
-        persistedPhotoPath = (photoResponse.data?.data ?? photoResponse.data)?.photo_path
-      } catch {
-        // Keep local snapshot when upload fails.
-      }
-    }
-
-    const snapshot = {
-      exercises: session.exercises,
-      finish_weight_kg: weight,
-      finish_waist_cm: waist,
-      finish_photo_data_url: persistedPhotoPath ?? photoDataUrl,
-    }
-    const serializedSnapshot = `PWA_SNAPSHOT:${btoa(unescape(encodeURIComponent(JSON.stringify(snapshot))))}`
+    const endedAt = new Date().toISOString()
+    const completionPayload = buildCompletionPayload(session, endedAt, weight, waist, photoDataUrl)
+    let completedOnline = false
 
     if (navigator.onLine && session.remote_session_id && session.remote_session_id > 0) {
       try {
-        const endedAt = new Date().toISOString()
-        await apiClient.patch(`/workout-sessions/${session.remote_session_id}`, {
-          status: 'completed',
-          ended_at: endedAt,
-          notes: serializedSnapshot,
-        })
-        await gymService.upsertWorkoutSessionCache({
-          id: session.remote_session_id,
-          started_at: session.started_at,
-          status: 'completed',
-          workout_plan_id: session.plan_id || null,
-          ended_at: endedAt,
-          notes: serializedSnapshot,
-        })
+        const response = await apiClient.post(`/workout-sessions/${session.remote_session_id}/complete`, completionPayload)
+        const completedSession = response.data?.data?.session ?? response.data?.session
+        if (completedSession) {
+          await gymService.upsertWorkoutSessionCache(completedSession)
+        }
+        completedOnline = true
       } catch {
-        // Ignore API mismatch on optional endpoint.
+        await syncStore.enqueueOperation({
+          resource: 'workout_sessions',
+          action: 'update',
+          entity_id: session.remote_session_id,
+          data: { status: 'completed', ended_at: endedAt },
+        })
       }
     } else if (session.remote_session_id && session.remote_session_id > 0) {
       await syncStore.enqueueOperation({
         resource: 'workout_sessions',
         action: 'update',
         entity_id: session.remote_session_id,
-        data: { status: 'completed', ended_at: new Date().toISOString(), notes: serializedSnapshot },
+        data: { status: 'completed', ended_at: endedAt },
       })
     } else {
-      // Offline-only session: create directly as completed with full snapshot.
       if (session.remote_session_id && session.remote_session_id < 0) {
         await syncStore.discardLocalEntity('workout_sessions', session.remote_session_id, session.id)
       }
@@ -253,10 +274,38 @@ const completeSession = async (session: SessionLog) => {
         data: {
           workout_plan_id: session.plan_id || null,
           started_at: session.started_at,
-          ended_at: new Date().toISOString(),
+          ended_at: endedAt,
           status: 'completed',
-          notes: serializedSnapshot,
+          sets: session.exercises,
+          measurement: weight != null ? { measured_at: endedAt, weight, waist_cm: waist } : undefined,
+          progress_photo: photoDataUrl ? { photo_data_url: photoDataUrl, taken_at: endedAt, note: `Sesja ${session.plan_name}` } : undefined,
         },
+      })
+    }
+
+    for (const setItem of collectCompletedSets(session)) {
+      if (!completedOnline && session.remote_session_id && session.remote_session_id > 0) {
+        await syncStore.enqueueOperation({
+          resource: 'workout_sets',
+          action: 'create',
+          data: setItem,
+        })
+      }
+    }
+
+    if (weight != null && !completedOnline && session.remote_session_id && session.remote_session_id > 0) {
+      await syncStore.enqueueOperation({
+        resource: 'body_measurements',
+        action: 'create',
+        data: { measured_at: endedAt, weight, waist_cm: waist },
+      })
+    }
+
+    if (photoDataUrl && !completedOnline && session.remote_session_id && session.remote_session_id > 0) {
+      await syncStore.enqueueOperation({
+        resource: 'progress_photos',
+        action: 'create',
+        data: { photo_data_url: photoDataUrl, taken_at: endedAt, note: `Sesja ${session.plan_name}` },
       })
     }
 
@@ -266,8 +315,7 @@ const completeSession = async (session: SessionLog) => {
         started_at: session.started_at,
         status: 'completed',
         workout_plan_id: session.plan_id || null,
-        ended_at: new Date().toISOString(),
-        notes: serializedSnapshot,
+        ended_at: endedAt,
       })
     }
 

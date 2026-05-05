@@ -1,22 +1,30 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import DashboardView from '@/views/DashboardView.vue'
+import ExercisesView from '@/views/ExercisesView.vue'
+import LoginView from '@/views/LoginView.vue'
+import MeasurementsView from '@/views/MeasurementsView.vue'
+import PhotosView from '@/views/PhotosView.vue'
+import PlansView from '@/views/PlansView.vue'
+import ProfileView from '@/views/ProfileView.vue'
+import SessionsView from '@/views/SessionsView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
-    { path: '/login', name: 'login', component: () => import('@/views/LoginView.vue') },
-    { path: '/', name: 'dashboard', component: () => import('@/views/DashboardView.vue'), meta: { auth: true } },
-    { path: '/plans', name: 'plans', component: () => import('@/views/PlansView.vue'), meta: { auth: true } },
-    { path: '/sessions', name: 'sessions', component: () => import('@/views/SessionsView.vue'), meta: { auth: true } },
-    { path: '/exercises', name: 'exercises', component: () => import('@/views/ExercisesView.vue'), meta: { auth: true } },
+    { path: '/login', name: 'login', component: LoginView },
+    { path: '/', name: 'dashboard', component: DashboardView, meta: { auth: true } },
+    { path: '/plans', name: 'plans', component: PlansView, meta: { auth: true } },
+    { path: '/sessions', name: 'sessions', component: SessionsView, meta: { auth: true } },
+    { path: '/exercises', name: 'exercises', component: ExercisesView, meta: { auth: true } },
     {
       path: '/measurements',
       name: 'measurements',
-      component: () => import('@/views/MeasurementsView.vue'),
+      component: MeasurementsView,
       meta: { auth: true },
     },
-    { path: '/photos', name: 'photos', component: () => import('@/views/PhotosView.vue'), meta: { auth: true } },
-    { path: '/profile', name: 'profile', component: () => import('@/views/ProfileView.vue'), meta: { auth: true } },
+    { path: '/photos', name: 'photos', component: PhotosView, meta: { auth: true } },
+    { path: '/profile', name: 'profile', component: ProfileView, meta: { auth: true } },
   ],
 })
 

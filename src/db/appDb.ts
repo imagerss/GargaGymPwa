@@ -2,7 +2,11 @@ import Dexie, { type Table } from 'dexie'
 
 export type ResourceName =
   | 'workout_plans'
+  | 'workout_days'
+  | 'workout_day_exercises'
   | 'workout_sessions'
+  | 'workout_session_exercises'
+  | 'workout_sets'
   | 'exercises'
   | 'body_measurements'
   | 'progress_photos'

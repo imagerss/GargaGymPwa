@@ -42,6 +42,28 @@ export interface WorkoutSession {
   status: string
   workout_plan_id?: number | null
   notes?: string | null
+  workout_session_exercises?: WorkoutSessionExercise[]
+}
+
+export interface WorkoutSessionExercise {
+  id: number
+  workout_session_id?: number
+  exercise_id: number
+  order_index?: number
+  notes?: string | null
+  exercise?: Exercise
+  workout_sets?: WorkoutSet[]
+}
+
+export interface WorkoutSet {
+  id: number
+  workout_session_exercise_id: number
+  set_number?: number | null
+  reps: number
+  weight: number | string
+  rir?: number | null
+  is_warmup?: boolean
+  completed_at?: string | null
 }
 
 export interface BodyMeasurement {
@@ -114,21 +136,23 @@ const maybeRefreshCacheFromSync = async (): Promise<boolean> => {
 }
 
 const listWithCache = async <T extends { id: number }>(resource: ResourceName, endpoint: string): Promise<T[]> => {
+  if (navigator.onLine) {
+    try {
+      const response = await apiClient.get(endpoint)
+      const records = extractList<T>(response.data)
+      await writeCachedResource(resource, records)
+      return records
+    } catch {
+      // Fall back to cache when the server cannot be reached.
+    }
+  }
+
   const cached = await readCachedResource<T>(resource)
   if (cached.length > 0) {
-    const refreshed = await maybeRefreshCacheFromSync()
-    if (refreshed) {
-      return readCachedResource<T>(resource)
-    }
     return cached
   }
 
-  if (!navigator.onLine) return []
-
-  const response = await apiClient.get(endpoint)
-  const records = extractList<T>(response.data)
-  await writeCachedResource(resource, records)
-  return records
+  return []
 }
 
 export const gymService = {

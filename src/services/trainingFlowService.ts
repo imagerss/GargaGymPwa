@@ -21,6 +21,7 @@ export interface SessionSetLog {
 }
 
 export interface SessionExerciseLog {
+  workout_session_exercise_id?: number | null
   exercise_id: number
   exercise_name: string
   target_sets: number
@@ -49,6 +50,18 @@ export interface ServerSessionSnapshot {
   workout_plan_id?: number | null
   ended_at?: string | null
   notes?: string | null
+  workout_session_exercises?: Array<{
+    id: number
+    exercise_id: number
+    order_index?: number | null
+    exercise?: { id: number; name: string } | null
+    workout_sets?: Array<{
+      id: number
+      set_number?: number | null
+      reps: number
+      weight: number | string
+    }>
+  }>
 }
 
 const PLAN_CONFIGS_KEY = 'training_plan_configs_v1'
@@ -123,6 +136,53 @@ const buildExercisesFromPlanConfig = (planId: number): SessionExerciseLog[] => {
       weight_kg: null,
     })),
   }))
+}
+
+const buildExercisesFromServer = (
+  server: ServerSessionSnapshot,
+  snapshotExercises?: SessionExerciseLog[],
+): SessionExerciseLog[] => {
+  const sessionExercises = (server.workout_session_exercises ?? [])
+    .slice()
+    .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
+  if (sessionExercises.length === 0) return []
+
+  const planExercises = buildExercisesFromPlanConfig(server.workout_plan_id ?? 0)
+
+  return sessionExercises.map((entry) => {
+    const snapshotExercise = snapshotExercises?.find((item) => item.exercise_id === entry.exercise_id)
+    const planExercise = planExercises.find((item) => item.exercise_id === entry.exercise_id)
+    const workoutSets = (entry.workout_sets ?? [])
+      .slice()
+      .sort((a, b) => (a.set_number ?? a.id) - (b.set_number ?? b.id))
+    const targetSets = Math.max(
+      snapshotExercise?.target_sets ?? 0,
+      planExercise?.target_sets ?? 0,
+      workoutSets.length,
+      1,
+    )
+
+    const sets = Array.from({ length: targetSets }, (_, idx) => {
+      const setNumber = idx + 1
+      const serverSet = workoutSets.find((item) => (item.set_number ?? item.id) === setNumber) ?? workoutSets[idx]
+      const snapshotSet = snapshotExercise?.sets.find((item) => item.set_number === setNumber)
+
+      return {
+        set_number: setNumber,
+        reps_done: serverSet ? Number(serverSet.reps) : snapshotSet?.reps_done ?? null,
+        weight_kg: serverSet ? Number(serverSet.weight) : snapshotSet?.weight_kg ?? null,
+      }
+    })
+
+    return {
+      workout_session_exercise_id: entry.id,
+      exercise_id: entry.exercise_id,
+      exercise_name: entry.exercise?.name ?? snapshotExercise?.exercise_name ?? planExercise?.exercise_name ?? `Cwiczenie #${entry.exercise_id}`,
+      target_sets: targetSets,
+      target_reps: snapshotExercise?.target_reps ?? planExercise?.target_reps ?? 10,
+      sets,
+    }
+  })
 }
 
 const resolvePlanName = (
@@ -329,14 +389,18 @@ export const trainingFlowService = {
       const existing = localByRemoteId.get(server.id)
       const serverStatus: SessionLog['status'] = server.status === 'completed' ? 'completed' : 'active'
       const snapshot = parseSnapshotFromNotes(server.notes)
+      const serverExercises = buildExercisesFromServer(server, snapshot?.exercises)
 
       if (existing) {
-        const hydratedExercises =
-          existing.exercises.length > 0
-            ? existing.exercises
-            : snapshot?.exercises && snapshot.exercises.length > 0
-              ? snapshot.exercises
-              : buildExercisesFromPlanConfig(planId ?? 0)
+        let hydratedExercises = buildExercisesFromPlanConfig(planId ?? 0)
+        if (snapshot?.exercises && snapshot.exercises.length > 0) {
+          hydratedExercises = snapshot.exercises
+        }
+        if (serverExercises.length > 0) {
+          hydratedExercises = serverExercises
+        } else if (existing.exercises.length > 0) {
+          hydratedExercises = existing.exercises
+        }
         result.push({
           ...existing,
           remote_session_id: server.id,
@@ -360,12 +424,16 @@ export const trainingFlowService = {
               }),
         })
       } else {
-        const hydratedExercises =
-          snapshot?.exercises && snapshot.exercises.length > 0
-            ? snapshot.exercises
-            : serverStatus === 'active'
-              ? buildExercisesFromPlanConfig(planId ?? 0)
-              : []
+        let hydratedExercises: SessionExerciseLog[] = []
+        if (serverStatus === 'active') {
+          hydratedExercises = buildExercisesFromPlanConfig(planId ?? 0)
+        }
+        if (snapshot?.exercises && snapshot.exercises.length > 0) {
+          hydratedExercises = snapshot.exercises
+        }
+        if (serverExercises.length > 0) {
+          hydratedExercises = serverExercises
+        }
         result.push({
           id: `srv-${server.id}`,
           remote_session_id: server.id,
@@ -394,9 +462,14 @@ export const trainingFlowService = {
     return result
   },
 
-  createSessionFromPlan(plan: { id: number; name: string }, remoteSessionId?: number | null): SessionLog | null {
+  createSessionFromPlan(
+    plan: { id: number; name: string },
+    remoteSessionId?: number | null,
+    serverSession?: ServerSessionSnapshot,
+  ): SessionLog | null {
     const config = this.getPlanConfig(plan.id)
     if (!config || config.exercises.length === 0) return null
+    const serverExercises = serverSession ? buildExercisesFromServer(serverSession) : []
 
     const session: SessionLog = {
       id: uid(),
@@ -405,17 +478,20 @@ export const trainingFlowService = {
       plan_name: plan.name,
       started_at: new Date().toISOString(),
       status: 'active',
-      exercises: config.exercises.map((item) => ({
-        exercise_id: item.exercise_id,
-        exercise_name: item.exercise_name,
-        target_sets: item.target_sets,
-        target_reps: item.target_reps,
-        sets: Array.from({ length: item.target_sets }, (_, idx) => ({
-          set_number: idx + 1,
-          reps_done: null,
-          weight_kg: null,
-        })),
-      })),
+      exercises:
+        serverExercises.length > 0
+          ? serverExercises
+          : config.exercises.map((item) => ({
+              exercise_id: item.exercise_id,
+              exercise_name: item.exercise_name,
+              target_sets: item.target_sets,
+              target_reps: item.target_reps,
+              sets: Array.from({ length: item.target_sets }, (_, idx) => ({
+                set_number: idx + 1,
+                reps_done: null,
+                weight_kg: null,
+              })),
+            })),
     }
 
     const sessions = getSessionLogs()
